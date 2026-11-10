@@ -1,0 +1,89 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "wishPond": {
+      "coins": {
+        ".read": true,
+        "$id": {
+          ".write": "auth != null && !data.exists() && newData.exists()",
+          ".validate": "newData.hasChildren(['uid','design','launch','land','at']) && $id.length <= 24",
+          "uid": { ".validate": "newData.val() === auth.uid" },
+          "at": { ".validate": "newData.val() === now && newData.parent().parent().parent().child('users/' + auth.uid + '/lastAt').val() === now" },
+          "nick": { ".validate": "newData.isString() && newData.val().length <= 10" },
+          "round": { ".validate": "newData.isString() && newData.val().length <= 24" },
+          "shot": { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 3" },
+          "score": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100" },
+          "design": {
+            "metal": { ".validate": "newData.isString() && newData.val().length <= 8" },
+            "rim": { ".validate": "newData.isString() && newData.val().length <= 8" },
+            "stamp": { ".validate": "newData.isString() && newData.val().length <= 12" },
+            "text": { ".validate": "newData.isString() && newData.val().length <= 8" },
+            "back": { ".validate": "newData.isString() && newData.val().length <= 8" },
+            "$other": { ".validate": false }
+          },
+          "launch": {
+            ".validate": "newData.hasChildren(['power','aimX','spin','wind','seed'])",
+            "power": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1" },
+            "aimX": { ".validate": "newData.isNumber() && newData.val() >= -1 && newData.val() <= 1" },
+            "spin": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1" },
+            "wind": { ".validate": "newData.isNumber() && newData.val() >= -2 && newData.val() <= 2" },
+            "seed": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          },
+          "land": {
+            "$k": { ".validate": "($k === 'zone' && (newData.val() === 'turtle' || newData.val() === 'pot' || newData.val() === 'water' || newData.val() === 'out')) || ($k !== 'zone' && newData.isNumber() && newData.val() >= -10 && newData.val() <= 10)" }
+          },
+          "$other": { ".validate": false }
+        }
+      },
+      "users": {
+        "$uid": {
+          "lastAt": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && auth.uid === $uid",
+            ".validate": "newData.val() === now && (!data.exists() || now - data.val() > 1200)"
+          }
+        }
+      },
+      "stats": {
+        ".read": true,
+        "total": {
+          ".write": "auth != null",
+          ".validate": "newData.isNumber() && newData.val() === (data.exists() ? data.val() : 0) + 1"
+        }
+      },
+      "wishes": {
+        ".read": true,
+        "$id": {
+          ".write": "auth != null && !data.exists() && newData.exists()",
+          ".validate": "newData.hasChildren(['text','zone','uid','at']) && $id.length <= 24",
+          "text": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 40" },
+          "zone": { ".validate": "newData.val() === 'turtle' || newData.val() === 'pot'" },
+          "uid": { ".validate": "newData.val() === auth.uid || newData.val() === data.val()" },
+          "at": { ".validate": "newData.val() === now || newData.val() === data.val()" },
+          "cheers": {
+            "$u": {
+              ".write": "auth != null && auth.uid === $u && !data.exists() && root.child('wishPond/wishes/' + $id).exists()",
+              ".validate": "newData.val() === true"
+            }
+          },
+          "reports": {
+            "$u": {
+              ".write": "auth != null && auth.uid === $u && !data.exists() && root.child('wishPond/wishes/' + $id).exists()",
+              ".validate": "newData.val() === true"
+            }
+          },
+          "$other": { ".validate": false }
+        }
+      },
+      "presence": {
+        ".read": true,
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "!newData.exists() || (newData.hasChildren(['role','at']) && (newData.child('role').val() === 'pond' || newData.child('role').val() === 'thrower'))"
+        }
+      }
+    }
+  }
+}

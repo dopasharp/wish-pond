@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>동전 던지기 · 소원의 연못 🪙</title>
+  <meta name="description" content="내가 꾸민 동전을 소원의 연못에 던져요. 한 번에 3개, 거북 등에 올리면 대길!">
+  <meta name="theme-color" content="#120f22">
+  <meta name="dopasharp:game" content="wish-pond">
+  <link rel="canonical" href="https://dopasharp.github.io/wish-pond/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="도파# dopa.shap">
+  <meta property="og:title" content="소원의 연못 🪙 동전 던지기">
+  <meta property="og:description" content="내가 꾸민 동전을 던져 소원을 빌어요. 거북 등에 올리면 대길!">
+  <meta property="og:url" content="https://dopasharp.github.io/wish-pond/coin.html">
+  <meta property="og:image" content="https://dopasharp.github.io/wish-pond/og/wish.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <link rel="icon" href="dopasharp/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="dopasharp/tokens.css">
+  <link rel="stylesheet" href="dopasharp/components.css">
+  <link rel="stylesheet" href="css/style.css?v=1">
+  <script src="dopasharp/dopasharp.js" defer></script>
+  <script type="module" src="js/coin.js?v=1"></script>
+</head>
+<body class="coin-page" data-step="intro">
+  <canvas id="scene" aria-label="연못 3D 화면"></canvas>
+  <div id="touch" class="touch" aria-hidden="true"></div>
+
+  <header data-dopa="header" class="coin-header"></header>
+
+  <!-- 던지기 화면 위 표시 -->
+  <div class="hud" id="hud">
+    <div class="hud-left">
+      <div id="coins-left" class="coins-left" aria-label="남은 동전"></div>
+      <div id="wind" class="wind">바람 –</div>
+    </div>
+    <div class="hud-right">
+      <button id="sound-btn" class="chip" type="button" aria-label="소리">🔊</button>
+      <button id="board-btn" class="chip" type="button">🎉 성취 게시판</button>
+    </div>
+  </div>
+  <p id="hint" class="hint">↑ 동전을 위로 휙! 밀어서 던지기</p>
+  <div id="shot-toast" class="shot-toast" hidden></div>
+  <div id="power" class="power" hidden><span></span></div>
+  <button id="again-btn" class="dopa-button again" type="button">🪙 다시 빌기</button>
+
+  <!-- 1. 시작 -->
+  <section class="sheet" id="sheet-intro" aria-labelledby="intro-title">
+    <div class="sheet-grip"></div>
+    <h1 id="intro-title" class="sheet-title">🪙 소원의 연못</h1>
+    <p class="sheet-lead">동전을 꾸미고, 소원을 빌고, 연못에 던져요.<br><b>한 번에 3개.</b> 거북 등에 올리면 <b class="gold">대길</b>, 항아리에 쏙 들어가면 <b class="gold">길</b>!</p>
+    <label class="field">
+      <span>닉네임 <small>(연못 화면에 잠깐 떠요 · 비워도 OK)</small></span>
+      <input id="nick" type="text" maxlength="10" autocomplete="nickname" placeholder="익명">
+    </label>
+    <button id="start-btn" class="dopa-button" type="button">동전 꾸미러 가기</button>
+    <p id="net-note" class="note"></p>
+  </section>
+
+  <!-- 2. 동전 꾸미기 -->
+  <section class="sheet" id="sheet-design" hidden aria-labelledby="design-title">
+    <div class="sheet-grip"></div>
+    <h2 id="design-title" class="sheet-title">동전 꾸미기</h2>
+    <div class="group">
+      <span class="group-label">재질</span>
+      <div id="metals" class="swatches" role="radiogroup" aria-label="재질"></div>
+    </div>
+    <div class="group">
+      <span class="group-label">가운데 그림</span>
+      <div id="stamps" class="stamps" role="radiogroup" aria-label="가운데 그림"></div>
+      <input id="stamp-custom" class="mini-input" type="text" maxlength="4" placeholder="직접 이모지 입력 ✍️">
+    </div>
+    <div class="row2">
+      <label class="field"><span>앞면 글자 <small>4자</small></span><input id="text-front" type="text" maxlength="4" placeholder="합격"></label>
+      <label class="field"><span>뒷면 글자 <small>4자</small></span><input id="text-back" type="text" maxlength="4" placeholder="2026"></label>
+    </div>
+    <div class="group">
+      <span class="group-label">테두리</span>
+      <div id="rims" class="chips" role="radiogroup" aria-label="테두리"></div>
+    </div>
+    <div class="row2 actions">
+      <button id="flip-btn" class="dopa-button dopa-button--secondary" type="button">뒷면 보기</button>
+      <button id="design-done" class="dopa-button" type="button">다음: 소원 빌기</button>
+    </div>
+  </section>
+
+  <!-- 3. 소원 -->
+  <section class="sheet" id="sheet-wish" hidden aria-labelledby="wish-title">
+    <div class="sheet-grip"></div>
+    <h2 id="wish-title" class="sheet-title">어떤 소원을 빌까요?</h2>
+    <label class="field">
+      <textarea id="wish" rows="2" maxlength="40" placeholder="예) 이번 시험 꼭 합격하게 해주세요"></textarea>
+      <span class="count"><span id="wish-count">0</span>/40</span>
+    </label>
+    <label class="check"><input id="share-wish" type="checkbox" checked> 성공하면 <b>익명으로</b> 소원 성취 게시판에 올리기</label>
+    <p class="note">거북 등이나 항아리에 들어가면 성공! 다른 사람들이 👏 응원해 줘요.</p>
+    <div class="row2 actions">
+      <button id="wish-back" class="dopa-button dopa-button--secondary" type="button">동전 다시 꾸미기</button>
+      <button id="wish-done" class="dopa-button" type="button">연못으로! 🪙×3</button>
+    </div>
+  </section>
+
+  <!-- 성취 게시판 -->
+  <section class="sheet sheet-board" id="sheet-board" hidden aria-labelledby="board-title">
+    <div class="sheet-grip"></div>
+    <div class="board-head">
+      <h2 id="board-title" class="sheet-title">🎉 소원 성취 게시판</h2>
+      <button id="board-close" class="chip" type="button" aria-label="닫기">✕</button>
+    </div>
+    <p class="note">성공한 소원만 익명으로 올라와요. 👏 눌러서 응원해 주세요.</p>
+    <ol id="wish-list" class="wish-list"></ol>
+  </section>
+
+  <footer data-dopa="footer" class="coin-footer"></footer>
+</body>
+</html>

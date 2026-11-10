@@ -1,0 +1,63 @@
+/* 도파# design tokens v1.1 — identical in every dopa.shap repo.
+   Change brand values here only; never hard-code them in a game.
+   Font: load Pretendard Variable in the page <head> (see README); system sans-serif is the fallback. */
+:root{
+ /* Brand */
+ --color-bg:#0B0E0D;
+ --color-surface:#15191A;
+ --color-surface-raised:#202625;
+ --color-brand:#D9FF44;
+ --color-brand-hover:#C8EF2E;
+ --color-on-brand:#101310;
+ --color-pink:#FF6C91;
+ --color-mint:#86EFC8;
+
+ /* Text */
+ --color-text:#F7F6F2;
+ --color-text-muted:#AAB4AE;
+ --color-border:#39423D;
+ --color-error:#FF7777;
+
+ /* Type */
+ --font-body:"Pretendard Variable","Pretendard","Inter",system-ui,-apple-system,"Apple SD Gothic Neo",sans-serif;
+ --text-display:clamp(38px,5vw + 20px,80px);
+ --text-h1:clamp(32px,2.5vw + 22px,48px);
+ --text-h2:clamp(26px,1.2vw + 21px,32px);
+ --text-h3:clamp(20px,.8vw + 17px,24px);
+ --text-body:16px;
+ --text-small:14px;
+ --text-label:12px;
+ --leading-tight:1.1;
+ --leading-body:1.6;
+
+ /* Radius */
+ --radius-sm:8px;
+ --radius-md:12px;
+ --radius-lg:20px;
+ --radius-xl:28px;
+ --radius-pill:999px;
+
+ /* Spacing: 4px scale */
+ --space-1:4px;
+ --space-2:8px;
+ --space-3:12px;
+ --space-4:16px;
+ --space-6:24px;
+ --space-8:32px;
+ --space-12:48px;
+ --space-16:64px;
+
+ /* Layout */
+ --container-max:1200px;
+ --page-padding:clamp(20px,4vw,48px);
+ --button-height:52px;
+
+ /* Motion */
+ --duration-fast:120ms;
+ --duration-normal:220ms;
+ --duration-slow:400ms;
+ --ease-standard:cubic-bezier(.2,.8,.2,1);
+}
+@media (prefers-reduced-motion:reduce){
+ :root{--duration-fast:0ms;--duration-normal:0ms;--duration-slow:0ms}
+}

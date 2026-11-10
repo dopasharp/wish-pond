@@ -1,0 +1,42 @@
+<!doctype html>
+<!-- 링크 미리보기 이미지 원본. 고친 뒤 다시 렌더링:
+     python3 -m http.server 4190  (저장소 루트에서)
+     node -e "const {chromium}=require('playwright');(async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:1200,height:630}});await p.goto('http://localhost:4190/og/wish.html');await p.waitForFunction(()=>window.ogReady,null,{timeout:120000});await p.screenshot({path:'og/wish.png'});await b.close()})()" -->
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>소원의 연못 OG</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;width:1200px;height:630px;overflow:hidden;background:#120f22}
+  canvas{position:absolute;inset:0;width:1200px;height:630px}
+  .t{position:absolute;left:64px;top:60px;color:#fff6dc;font-family:"Black Han Sans","Pretendard Variable",sans-serif;text-shadow:0 4px 30px rgba(0,0,0,.7)}
+  .t h1{margin:0;font-size:104px;font-weight:400;line-height:1}
+  .t p{margin:16px 0 0;font:700 30px/1.35 "Pretendard Variable",sans-serif;color:#f1e6cf}
+  .t b{color:#ffd36b}
+  .brand{position:absolute;right:56px;bottom:44px;font:800 22px "Pretendard Variable",sans-serif;letter-spacing:.14em;color:#d9ff44}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="t"><h1>소원의 연못</h1><p>내가 꾸민 동전을 던져 소원을 빌어요<br>거북 등에 올리면 <b>대길!</b></p></div>
+<div class="brand">도파# · GAME 009</div>
+<script type="module">
+import { createWorld } from '../js/world.js';
+import { simulate, mulberry32 } from '../js/physics.js';
+const w = createWorld(document.getElementById('c'), { mode: 'pond', quality: 'high' });
+const r = mulberry32(7);
+const metals = ['gold', 'silver', 'bronze', 'rose', 'jade'];
+const stamps = ['🐢', '🍀', '⭐', '💖', '🌙', '🐉', '🌸'];
+for (let i = 0; i < 70; i++) {
+  const launch = { power: 0.25 + r() * 0.5, aimX: r() * 1.8 - 0.9, spin: 0.6, wind: 0, seed: i * 977 };
+  const sim = simulate(launch);
+  w.placeCoin({ design: { metal: metals[i % 5], rim: 'dots', stamp: stamps[i % 7], text: '소원', back: '' }, launch, land: { ...sim.rest, zone: sim.zone } });
+}
+w.camera.position.set(1.2, 4.6, 6.2);
+setTimeout(() => { w.addRipple(0.6, 0.4, 2); w.addRipple(-0.3, 1.2, 1.4); }, 600);
+setTimeout(() => (window.ogReady = true), 2500);
+</script>
+</body>
+</html>
