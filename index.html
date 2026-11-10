@@ -11,7 +11,7 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="도파# dopa.shap">
   <meta property="og:title" content="소원의 연못 🪙">
-  <meta property="og:description" content="내가 꾸민 동전을 던져 소원을 빌어요. 거북 등에 올리면 대길!">
+  <meta property="og:description" content="내가 꾸민 동전을 던져 소원을 빌어요. 거북 등에 올리면 소원이 이루어져요!">
   <meta property="og:url" content="https://dopasharp.github.io/wish-pond/">
   <meta property="og:image" content="https://dopasharp.github.io/wish-pond/og/wish.png">
   <meta property="og:image:width" content="1200">
@@ -25,10 +25,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dopasharp/tokens.css">
   <link rel="stylesheet" href="dopasharp/components.css">
-  <link rel="stylesheet" href="css/style.css?v=5">
+  <link rel="stylesheet" href="css/style.css?v=8">
   <script src="dopasharp/dopasharp.js" defer></script>
   <script src="vendor/qrcode.js"></script>
-  <script type="module" src="js/pond.js?v=5"></script>
+  <script type="module" src="js/pond.js?v=8"></script>
 </head>
 <body class="pond-page">
   <canvas id="scene" aria-label="소원의 연못 3D 화면"></canvas>
@@ -40,8 +40,10 @@
     <p><span id="total">🪙 0개</span> · <span id="online">지금 0명</span> · <span id="wind" title="바람">바람 –</span></p>
   </div>
 
-  <aside class="board" aria-label="소원 성취 게시판">
-    <h2>🎉 소원 성취</h2>
+  <aside class="board" id="board" aria-label="소원 성취 게시판">
+    <button id="board-fold" class="board-head" type="button" aria-expanded="true" aria-controls="board-list">
+      <h2>🎉 소원 성취 <span id="board-count" class="board-count"></span></h2><span class="board-toggle" aria-hidden="true">－</span>
+    </button>
     <ol id="board-list" class="board-list"><li class="board-empty">거북 등이나 항아리에 동전을 올리면<br>소원이 여기에 익명으로 떠요.</li></ol>
   </aside>
 

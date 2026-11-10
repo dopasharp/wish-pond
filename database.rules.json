@@ -117,6 +117,10 @@
             ".write": "auth != null",
             ".validate": "newData.isNumber() && newData.val() === (data.exists() ? data.val() : 0) + 1 && !root.child('wishPond/wishCheers/' + $id + '/' + auth.uid).exists() && newData.parent().parent().parent().child('wishCheers/' + $id + '/' + auth.uid).exists()"
           },
+          "h": {
+            ".write": "auth != null",
+            ".validate": "newData.isNumber() && newData.val() === (data.exists() ? data.val() : 0) + 1 && !root.child('wishPond/wishHearts/' + $id + '/' + auth.uid).exists() && newData.parent().parent().parent().child('wishHearts/' + $id + '/' + auth.uid).exists()"
+          },
           "r": {
             ".write": "auth != null",
             ".validate": "newData.isNumber() && newData.val() === (data.exists() ? data.val() : 0) + 1 && !root.child('wishPond/wishReports/' + $id + '/' + auth.uid).exists() && newData.parent().parent().parent().child('wishReports/' + $id + '/' + auth.uid).exists()"
@@ -127,6 +131,14 @@
         }
       },
       "wishCheers": {
+        "$id": {
+          "$u": {
+            ".write": "auth != null && auth.uid === $u && !data.exists() && root.child('wishPond/wishes/' + $id).exists()",
+            ".validate": "newData.val() === true"
+          }
+        }
+      },
+      "wishHearts": {
         "$id": {
           "$u": {
             ".write": "auth != null && auth.uid === $u && !data.exists() && root.child('wishPond/wishes/' + $id).exists()",

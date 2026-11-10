@@ -1,11 +1,12 @@
 // 던지는 폰: 닉네임 → 동전 꾸미기 → 소원 → 3번 던지기 → 결과 → (성공 시) 익명 게시판
-import { createWorld } from './world.js?v=4';
-import { connect, mode, newId, explainError } from './net.js?v=4';
-import { windAt, simulate, scoreOf, isSuccess, SPOTS } from './physics.js?v=4';
-import { METALS, RIMS, STAMPS, DEFAULT_DESIGN, sanitizeDesign } from './coin-art.js?v=4';
-import { ZONES, SHOTS, shotMessage, finalResult, timeAgo, esc } from './game.js?v=4';
-import { cleanWish, cleanNick } from './filter.js?v=4';
-import * as sfx from './sound.js?v=4';
+import { createWorld } from './world.js?v=8';
+import { connect, mode, newId, explainError } from './net.js?v=8';
+import { windAt, simulate, scoreOf, isSuccess, SPOTS } from './physics.js?v=8';
+import { METALS, RIMS, STAMPS, DEFAULT_DESIGN, sanitizeDesign } from './coin-art.js?v=8';
+import { ZONES, SHOTS, shotMessage, finalResult, timeAgo, esc } from './game.js?v=8';
+import { cleanWish, cleanNick } from './filter.js?v=8';
+import * as sfx from './sound.js?v=8';
+import { hypeBurst } from './hype.js?v=8';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -16,6 +17,12 @@ const vibrate = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catc
 const track = (n, p) => window.DopaSharp && window.DopaSharp.track(n, p);
 
 const world = createWorld($('scene'), { mode: 'thrower' });
+// 불꽃 효과음은 장면에서 쏘고 터지는 순간에 맞춤
+world.onFx((type, p) => {
+  const pan = Math.max(-1, Math.min(1, p.x / 5));
+  if (type === 'launch') sfx.fireworkLaunch(pan, 0.45);
+  else if (type === 'burst') sfx.fireworkPop(pan, 0.6);
+});
 
 let design = sanitizeDesign(store.get('design', DEFAULT_DESIGN));
 let nick = store.get('nick', '');
@@ -336,7 +343,10 @@ function throwCoin({ power, aimX, spin }) {
       sfx.eventSound(ev);
       if (ev.type === 'splash') vibrate(25);
       if (ev.type === 'stone' || ev.type === 'ceramic') vibrate(15);
-      if (ev.type === 'turtle' || ev.type === 'potland') vibrate([40, 60, 40, 60, 80]);
+      if (ev.type === 'turtle' || ev.type === 'potland') {
+        hypeBurst(ev.type === 'turtle' ? 'turtle' : 'pot');
+        vibrate([40, 50, 40, 50, 120, 80, 30, 40, 30, 40, 30, 40, 30]); // 쿵쿵 쾅! 짝짝짝
+      }
     },
     onDone() { afterShot(sim, shot); },
   });
@@ -346,7 +356,8 @@ function throwCoin({ power, aimX, spin }) {
 
 function afterShot(sim, shot) {
   const z = sim.zone;
-  showToast(shotMessage(sim), 2600, isSuccess(z) ? 'good' : z === 'out' ? 'bad' : '');
+  const toast = () => showToast(shotMessage(sim), 2600, isSuccess(z) ? 'good' : z === 'out' ? 'bad' : '');
+  if (isSuccess(z)) setTimeout(toast, 700); else toast(); // 성공이면 큰 도장이 지나간 뒤에
   if (shot < SHOTS) {
     setTimeout(() => { busy = false; motionCooldown = performance.now() + 700; world.setHandCoin(design); world.setHandMode('ready'); }, 900);
   } else {
@@ -356,12 +367,13 @@ function afterShot(sim, shot) {
 
 async function finishRound() {
   const best = round.shots.reduce((a, b) => (b.score > a.score ? b : a));
-  const res = finalResult(best);
   const success = round.shots.some((s) => isSuccess(s.zone));
   const bestZone = round.shots.find((s) => s.zone === 'turtle') ? 'turtle' : round.shots.find((s) => s.zone === 'pot') ? 'pot' : best.zone;
+  const res = finalResult(bestZone);
   track('game_complete', { zone: bestZone, score: best.score });
-  if (success) sfx.bell(); else if (best.score < 40) sfx.aww(); else sfx.sparkle();
+  if (success) { sfx.bell(); sfx.fanfare(0.9, bestZone === 'turtle'); } else sfx.sparkle(); // 실패해도 밝게
   let detail = res.detail;
+  if (success && round.wish) detail = `“${round.wish}” — ${detail}`;
   if (success && round.wish && round.share && api) {
     try {
       const wid = newId();
@@ -372,11 +384,12 @@ async function finishRound() {
   }
   const zones = round.shots.map((s) => ZONES[s.zone].emoji).join(' ');
   window.DopaSharp.showResult({
-    art: res.art, title: res.title, stat: `소원 성취 확률 ${best.score}%`, detail: `${zones} · ${detail}`,
-    shareText: `🪙 소원의 연못 — ${res.title} (성취 확률 ${best.score}%)`,
-    retryLabel: '다시 빌기 (동전 3개)',
+    art: res.art, title: res.title, stat: res.stat, detail: `${zones} · ${detail}`,
+    shareText: success ? `🪙 소원의 연못 — ${res.title} ${ZONES[bestZone].emoji}` : '🪙 소원의 연못 — 거북 등에 동전을 올리면 소원이 이루어진대요!',
+    retryLabel: success ? '소원 하나 더 빌기 🪙×3' : '다시 해보기 🪙×3',
     onRetry: () => go('wish'),
   });
+  if (success) hypeBurst(bestZone, { over: true }); // 결과 카드 위로 색종이 한 번 더 팡!
   busy = false;
   go('done');
 }
@@ -394,6 +407,8 @@ function onCoin(id, coin, initial) {
 let wishes = [];
 const lastCheers = store.get('cheerCounts', {});
 const myCheers = new Set(store.get('myCheers', []));
+const myHearts = new Set(store.get('myHearts', []));
+const lastHearts = store.get('heartCounts', {});
 function renderWishes() {
   const ol = $('wish-list');
   if (!wishes.length) { ol.innerHTML = '<li class="empty">아직 성취한 소원이 없어요. 첫 번째 주인공이 되어 보세요!</li>'; return; }
@@ -402,7 +417,10 @@ function renderWishes() {
     return `<li data-id="${w.id}" class="${me ? 'mine' : ''}">
       <span class="w-emoji">${ZONES[w.zone]?.emoji || '✨'}</span>
       <div class="w-body"><p>${esc(w.text)}</p><span class="w-meta">${me ? '<b>내 소원</b> · ' : ''}${timeAgo(w.at)}</span></div>
-      <button class="cheer" type="button" data-act="cheer" ${myCheers.has(w.id) || me ? 'disabled' : ''} aria-label="응원하기">👏 <span>${w.cheers}</span></button>
+      <div class="w-acts">
+        <button class="heart${myHearts.has(w.id) ? ' on' : ''}" type="button" data-act="heart" ${myHearts.has(w.id) || me ? 'disabled' : ''} aria-label="하트" aria-pressed="${myHearts.has(w.id)}">${myHearts.has(w.id) ? '❤️' : '🤍'} <span>${w.hearts}</span></button>
+        <button class="cheer" type="button" data-act="cheer" ${myCheers.has(w.id) || me ? 'disabled' : ''} aria-label="응원하기">👏 <span>${w.cheers}</span></button>
+      </div>
       ${me ? '' : '<button class="report" type="button" data-act="report" aria-label="신고">🚩</button>'}
     </li>`;
   }).join('');
@@ -410,7 +428,16 @@ function renderWishes() {
 $('wish-list').addEventListener('click', async (e) => {
   const btn = e.target.closest('[data-act]'); if (!btn || !api) return;
   const id = btn.closest('li').dataset.id;
-  if (btn.dataset.act === 'cheer') {
+  if (btn.dataset.act === 'heart') {
+    btn.disabled = true; btn.classList.add('on', 'pop'); btn.setAttribute('aria-pressed', 'true'); sfx.cheerPop(); vibrate([8, 40, 8]);
+    const n = btn.querySelector('span'); n.textContent = +n.textContent + 1;
+    btn.firstChild.textContent = '❤️ ';
+    floatHearts(btn);
+    myHearts.add(id); store.set('myHearts', [...myHearts].slice(-300));
+    const w = wishes.find((x) => x.id === id);
+    if (w) w.hearts += 1;
+    try { await api.heart(id, w ? w.hearts - 1 : 0); } catch (err) { console.warn(err); }
+  } else if (btn.dataset.act === 'cheer') {
     btn.disabled = true; btn.classList.add('pop'); sfx.cheerPop(); vibrate(10);
     const n = btn.querySelector('span'); n.textContent = +n.textContent + 1;
     myCheers.add(id); store.set('myCheers', [...myCheers].slice(-200));
@@ -421,6 +448,19 @@ $('wish-list').addEventListener('click', async (e) => {
     try { await api.report(id, w ? w.reports : 0); showToast('신고했어요. 고마워요.', 1800); } catch (err) { console.warn(err); }
   }
 });
+// 하트 누르면 작은 하트들이 퐁퐁 떠오름
+function floatHearts(btn) {
+  const r = btn.getBoundingClientRect();
+  for (let i = 0; i < 7; i++) {
+    const h = document.createElement('i');
+    h.className = 'heart-float'; h.textContent = ['❤️', '💖', '💗'][i % 3];
+    h.style.left = r.left + r.width / 2 + 'px'; h.style.top = r.top + 'px';
+    h.style.setProperty('--dx', ((Math.random() * 2 - 1) * 46).toFixed(0) + 'px');
+    h.style.setProperty('--d', (0.8 + Math.random() * 0.5).toFixed(2) + 's');
+    h.style.animationDelay = (i * 0.05).toFixed(2) + 's';
+    document.body.appendChild(h); setTimeout(() => h.remove(), 1600);
+  }
+}
 function openBoard() { $('sheet-board').hidden = false; renderWishes(); sfx.tick(); }
 $('board-btn').onclick = openBoard;
 $('again-btn').onclick = () => go('wish');
@@ -429,15 +469,19 @@ $('board-close').onclick = () => ($('sheet-board').hidden = true);
 function onWishes(list) {
   wishes = list;
   // 내 소원에 새 응원이 오면 알림
-  let gained = 0;
+  let gained = 0, loved = 0;
   list.forEach((w) => {
     if (!(w.mine || myWishes.has(w.id))) return;
     const before = lastCheers[w.id] ?? w.cheers;
     if (w.cheers > before) gained += w.cheers - before;
     lastCheers[w.id] = w.cheers;
+    const hb = lastHearts[w.id] ?? w.hearts;
+    if (w.hearts > hb) loved += w.hearts - hb;
+    lastHearts[w.id] = w.hearts;
   });
-  store.set('cheerCounts', lastCheers);
-  if (gained > 0) { showToast(`👏 누군가 내 소원을 응원했어요! (+${gained})`, 3000, 'good'); sfx.cheerPop(); }
+  store.set('cheerCounts', lastCheers); store.set('heartCounts', lastHearts);
+  if (loved > 0) { showToast(`❤️ 누군가 내 소원에 하트를 보냈어요! (+${loved})`, 3000, 'good'); sfx.cheerPop(); }
+  else if (gained > 0) { showToast(`👏 누군가 내 소원을 응원했어요! (+${gained})`, 3000, 'good'); sfx.cheerPop(); }
   $('board-btn').textContent = `🎉 성취 게시판${list.length ? ' ' + list.length : ''}`;
   if (!$('sheet-board').hidden) renderWishes();
 }

@@ -213,7 +213,7 @@ export function thud() {
   noise(t, 0.08).connect(lp).connect(env(t, 0.25, 0.002, 0.07)).connect(out1(0));
 }
 
-/** 대길: 절 종 + 풍경 소리 */
+/** 거북 등 성공: 절 종 + 풍경 소리 */
 export function bell() {
   if (!ok()) return;
   const t = ctx.currentTime + 0.05;
@@ -267,6 +267,91 @@ export function cheerPop() {
   [880, 1320].forEach((f, i) => osc('triangle', f, t + i * 0.06, 0.15).connect(env(t + i * 0.06, 0.12, 0.003, 0.12)).connect(out1(0.3)));
 }
 
+/** 성공 팡파르: 빰빠바밤~ (톱니파 화음 + 위로 쏘는 반짝 꼬리) */
+export function fanfare(vol = 1, big = true) {
+  if (!ok()) return;
+  const t = ctx.currentTime + 0.05;
+  const lp = filt('lowpass', 3200, 0.8); const g = ctx.createGain(); g.gain.value = vol; out(g, 0.55); lp.connect(g);
+  // 도-미-솔-(높은)도 화음, 마지막 음은 길게
+  const notes = big ? [[523.25, 0, 0.12], [659.25, 0.12, 0.12], [783.99, 0.24, 0.12], [1046.5, 0.38, 0.9]] : [[659.25, 0, 0.1], [783.99, 0.1, 0.1], [1046.5, 0.22, 0.7]];
+  notes.forEach(([f, d, len]) => {
+    [-6, 0, 6].forEach((cents) => {
+      const o = osc('sawtooth', f * Math.pow(2, cents / 1200), t + d, len + 0.1);
+      o.connect(env(t + d, 0.05, 0.012, len)).connect(lp);
+    });
+    osc('triangle', f / 2, t + d, len).connect(env(t + d, 0.09, 0.01, len)).connect(lp);
+  });
+  // 마지막 화음 (도·미·솔 같이)
+  const end = t + (big ? 0.38 : 0.22);
+  [659.25, 783.99].forEach((f) => osc('sawtooth', f, end, 0.9).connect(env(end, 0.03, 0.02, 0.85)).connect(lp));
+  // 반짝 꼬리
+  for (let i = 0; i < 8; i++) {
+    const s = end + 0.1 + i * 0.05, f = 1568 * Math.pow(1.122, i);
+    osc('sine', f, s, 0.25).connect(env(s, 0.05 * vol, 0.002, 0.22)).connect(out1(0.8));
+  }
+}
+/** 불꽃 쏘아 올리는 "피융~" */
+export function fireworkLaunch(pan = 0, vol = 0.6) {
+  if (!ok()) return;
+  const t = ctx.currentTime;
+  const o = osc('sine', 700, t, 0.6);
+  o.frequency.exponentialRampToValueAtTime(2400, t + 0.55);
+  const g = ctx.createGain(); out(g, 0.4, pan);
+  o.connect(env(t, 0.04 * vol, 0.05, 0.5)).connect(g);
+  const bp = filt('bandpass', 1500, 2); bp.frequency.exponentialRampToValueAtTime(4000, t + 0.55);
+  const g2 = ctx.createGain(); out(g2, 0.2, pan);
+  noise(t, 0.6).connect(bp).connect(env(t, 0.12 * vol, 0.08, 0.45)).connect(g2);
+}
+/** 불꽃 터지는 "펑!" + 타닥타닥 */
+export function fireworkPop(pan = 0, vol = 0.7) {
+  if (!ok()) return;
+  const t = ctx.currentTime;
+  const o = osc('sine', 120, t, 0.35);
+  o.frequency.exponentialRampToValueAtTime(45, t + 0.3);
+  const g = ctx.createGain(); out(g, 0.6, pan);
+  o.connect(env(t, 0.55 * vol, 0.003, 0.3)).connect(g);
+  const lp = filt('lowpass', 2200);
+  noise(t, 0.4).connect(lp).connect(env(t, 0.5 * vol, 0.002, 0.35)).connect(g);
+  // 타닥타닥 불티
+  const hp = filt('highpass', 3000);
+  const g2 = ctx.createGain(); out(g2, 0.5, pan); hp.connect(g2);
+  for (let i = 0; i < 14; i++) {
+    const s = t + 0.15 + Math.random() * 0.9;
+    noise(s, 0.015).connect(env(s, (0.08 + Math.random() * 0.12) * vol, 0.001, 0.012)).connect(hp);
+  }
+}
+/** 박수 소리: 여러 명이 짝짝짝 (crowd = 사람 수) */
+export function applause(crowd = 4, dur = 2.6, vol = 0.8) {
+  if (!ok()) return;
+  const t0 = ctx.currentTime + 0.15;
+  const people = Math.max(2, Math.min(14, crowd));
+  const bus = ctx.createGain(); bus.gain.value = vol; out(bus, 0.45);
+  for (let p = 0; p < people; p++) {
+    const rate = 3.1 + Math.random() * 1.4, pan = Math.random() * 1.6 - 0.8, tone = 900 + Math.random() * 1400;
+    const bp = filt('bandpass', tone, 1.1);
+    const pn = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if (pn) { pn.pan.value = pan; bp.connect(pn).connect(bus); } else bp.connect(bus);
+    let s = t0 + Math.random() * 0.4;
+    const end = t0 + dur - Math.random() * 0.4;
+    while (s < end) {
+      const fade = Math.min(1, (end - s) / 0.6);
+      noise(s, 0.03).connect(env(s, (0.16 + Math.random() * 0.1) * fade, 0.001, 0.028 + Math.random() * 0.02)).connect(bp);
+      s += 1 / rate + (Math.random() - 0.5) * 0.04;
+    }
+  }
+  // 와~ 하는 환호 (부드러운 노이즈 덩어리)
+  const bp = filt('bandpass', 1100, 0.6);
+  const g = env(t0, 0.06 * vol, 0.25, dur);
+  noise(t0, dur + 0.3).connect(bp).connect(g).connect(out1(0.5));
+}
+/** 성공 한 방: 팡파르 + 박수 (불꽃 소리는 장면에서 터질 때 따로) */
+export function success(zone, { near = true, crowd = 4 } = {}) {
+  if (!ok()) return;
+  const k = near ? 1 : 0.75;
+  setTimeout(() => fanfare(0.9 * k, zone === 'turtle'), zone === 'turtle' ? 250 : 350);
+  setTimeout(() => applause(crowd, zone === 'turtle' ? 3 : 2.4, 0.75 * k), 600);
+}
+
 /** 주변음: 분수 물소리 + 폭포 + 새소리 + 가끔 풍경 */
 export function startAmbient(level = 1) {
   if (!ctx || ambient) return;
@@ -311,15 +396,15 @@ export function stopAmbient() {
 }
 
 /** 물리 이벤트 → 효과음 (연못 화면·폰 공통) */
-export function eventSound(ev, { near = true } = {}) {
+export function eventSound(ev, { near = true, crowd = 4 } = {}) {
   const pan = Math.max(-1, Math.min(1, (ev.x || 0) / 4));
   const k = near ? 1 : 0.7;
   switch (ev.type) {
     case 'splash': splash(Math.min(1, ev.speed / 9) * k, pan); bubbles(5, 1.4); break;
     case 'stone': clink(Math.min(1, ev.speed / 8) * k, pan); break;
     case 'ceramic': ceramic(Math.min(1, ev.speed / 8) * k); break;
-    case 'potland': potIn(); setTimeout(sparkle, 500); break;
-    case 'turtle': clink(0.6 * k, pan); rattle(0.05, 0.6); setTimeout(bell, 700); break;
+    case 'potland': potIn(); setTimeout(sparkle, 500); success('pot', { near, crowd }); break;
+    case 'turtle': clink(0.6 * k, pan); rattle(0.05, 0.6); setTimeout(bell, 700); success('turtle', { near, crowd }); break;
     case 'ground': thud(); break;
     case 'settle': rattle(0, 0.18); break;
   }

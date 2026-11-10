@@ -195,3 +195,60 @@ button{font:inherit;color:inherit}
 .aim-dot{position:absolute;top:50%;left:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff3c9,#e2a93a);box-shadow:0 2px 8px rgba(160,110,20,.5);transition:left 80ms linear}
 .aim-mid{position:absolute;left:50%;top:-4px;width:2px;height:16px;margin-left:-1px;background:rgba(34,48,74,.25)}
 #input-btn{font-size:12px;padding:6px 10px;min-height:34px}
+
+/* ---------- 성공 연출 (도파민 팡팡) ---------- */
+.hype{position:fixed;inset:0;z-index:5;pointer-events:none;overflow:hidden}
+.hype.hype-over{z-index:1050}
+.hype-over .hype-bit,.hype-over .hype-coin{top:18%}
+.hype-flash{position:absolute;inset:0;background:radial-gradient(circle at 50% 45%,rgba(255,255,255,.95),rgba(255,226,140,.75) 35%,rgba(255,190,90,0) 75%);animation:hypeFlash .9s ease-out both}
+.hype-turtle .hype-flash{background:radial-gradient(circle at 50% 45%,rgba(255,255,255,.95),rgba(170,255,214,.7) 35%,rgba(120,230,200,0) 75%)}
+.hype-rays{position:absolute;left:50%;top:30%;width:170vmax;height:170vmax;margin:-85vmax 0 0 -85vmax;border-radius:50%;
+  background:repeating-conic-gradient(from 0deg,rgba(255,226,140,.38) 0deg 7deg,rgba(255,255,255,0) 7deg 18deg);
+  -webkit-mask:radial-gradient(circle,#000 0,#000 12%,transparent 52%);mask:radial-gradient(circle,#000 0,#000 12%,transparent 52%);
+  animation:hypeRays 2.8s ease-out both}
+.hype-turtle .hype-rays{background:repeating-conic-gradient(from 0deg,rgba(170,255,214,.38) 0deg 7deg,rgba(255,255,255,0) 7deg 18deg)}
+.hype-stamp{position:absolute;left:50%;top:26%;transform:translate(-50%,-50%);text-align:center;white-space:nowrap;animation:hypeStamp 2s cubic-bezier(.2,1.5,.3,1) both}
+.hype-stamp b{display:block;font:400 clamp(72px,13vw,170px)/.95 var(--display);color:#fff;letter-spacing:.02em;
+  -webkit-text-stroke:3px #c88a12;paint-order:stroke fill;
+  text-shadow:0 6px 0 #b0730a,0 12px 30px rgba(160,100,0,.45),0 0 60px rgba(255,214,120,.95)}
+.hype-turtle .hype-stamp b{-webkit-text-stroke-color:#0e9f8a;text-shadow:0 6px 0 #0b7f6e,0 12px 30px rgba(10,110,90,.4),0 0 60px rgba(160,255,210,.95)}
+.hype-emoji{display:block;font-size:clamp(46px,7vw,90px);line-height:1;margin-bottom:4px;animation:hypeWiggle .5s .25s ease-in-out 3}
+.hype-stamp small{display:block;margin-top:6px;font-weight:800;font-size:clamp(15px,1.6vw,22px);color:#fff;text-shadow:0 2px 8px rgba(20,60,100,.55)}
+.hype-bit,.hype-coin{position:absolute;left:50%;top:34%;width:var(--w);height:calc(var(--w) * 1.6);border-radius:2px;opacity:0;
+  animation:hypeConfetti var(--d) var(--delay) cubic-bezier(.15,.7,.4,1) both}
+.hype-coin{width:auto;height:auto;font-size:26px;font-style:normal;border-radius:0}
+@keyframes hypeFlash{0%{opacity:0}12%{opacity:1}100%{opacity:0}}
+@keyframes hypeRays{0%{opacity:0;transform:rotate(0) scale(.4)}15%{opacity:1}70%{opacity:.8}100%{opacity:0;transform:rotate(70deg) scale(1)}}
+@keyframes hypeStamp{0%{opacity:0;transform:translate(-50%,-50%) scale(2.6) rotate(-8deg)}14%{opacity:1;transform:translate(-50%,-50%) scale(.92) rotate(2deg)}
+  22%{transform:translate(-50%,-50%) scale(1.06) rotate(-1deg)}30%,78%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(0)}100%{opacity:0;transform:translate(-50%,-60%) scale(1.1)}}
+@keyframes hypeWiggle{25%{transform:rotate(-14deg) scale(1.15)}75%{transform:rotate(14deg) scale(1.15)}}
+@keyframes hypeConfetti{
+  0%{opacity:1;transform:translate(-50%,0) rotate(0)}
+  28%{opacity:1;transform:translate(calc(-50% + var(--dx) * .7),calc(var(--up) * -1)) rotate(calc(var(--rot) * .3))}
+  85%{opacity:1}
+  100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(var(--fall) - var(--up))) rotate(var(--rot))}}
+@media (prefers-reduced-motion:reduce){.hype-rays,.hype-bit,.hype-coin{display:none}}
+
+/* 하트 */
+.w-acts{display:flex;gap:6px;align-items:center}
+.heart{appearance:none;border:1px solid var(--pond-line);background:#fff;color:var(--pond-ink);border-radius:999px;padding:8px 12px;font-weight:800;font-size:15px;cursor:pointer;min-height:40px;white-space:nowrap}
+.heart.on,.heart:disabled{cursor:default;opacity:1;background:#ffe9f0;border-color:rgba(255,95,140,.4);color:#d23a6a}
+.heart.pop{animation:cheerPop .5s cubic-bezier(.2,1.6,.3,1)}
+.heart-float{position:fixed;z-index:20;font-style:normal;font-size:20px;pointer-events:none;transform:translate(-50%,0);animation:heartFloat var(--d) ease-out both}
+@keyframes heartFloat{0%{opacity:0;transform:translate(-50%,0) scale(.4)}15%{opacity:1;transform:translate(-50%,-14px) scale(1.15)}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),-110px) scale(.9)}}
+@media (max-width:480px){.wish-list li{grid-template-columns:auto 1fr auto}.w-emoji{grid-row:1 / 3;align-self:start}.w-acts{grid-column:2 / 4;grid-row:2}.wish-list .report{grid-column:3;grid-row:1}}
+
+/* 연못 화면 게시판 접기 + 하트 */
+.board-head{appearance:none;display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;padding:0;margin:0 0 10px;border:0;background:none;cursor:pointer;text-align:left}
+.board-head h2{margin:0}
+.board-count{font:700 13px/1 var(--font-body);color:var(--pond-muted);vertical-align:middle}
+.board-toggle{width:26px;height:26px;flex:none;display:grid;place-items:center;border-radius:50%;border:1px solid var(--pond-line);background:#fff;color:var(--pond-ink);font-weight:800;font-size:14px}
+.board-head:hover .board-toggle{background:#f1f7fb}
+.board.folded{width:auto;padding-bottom:4px}
+.board.folded .board-head{margin-bottom:8px}
+.board.folded .board-list{display:none}
+.board-list li{position:relative}
+.board-list li.loved{animation:loved .9s cubic-bezier(.2,1.4,.3,1) both}
+.board-heart{position:absolute;right:10px;top:6px;font-style:normal;font-size:22px;pointer-events:none;animation:heartUp 1.6s ease-out both}
+@keyframes loved{30%{background:#ffe3ee;transform:scale(1.03)}}
+@keyframes heartUp{0%{opacity:0;transform:scale(.4)}20%{opacity:1;transform:scale(1.3)}100%{opacity:0;transform:translateY(-40px) scale(1)}}

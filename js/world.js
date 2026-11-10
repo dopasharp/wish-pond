@@ -1,7 +1,7 @@
 // 3D 연못. 연못 화면(pond)과 던지는 폰(thrower)이 같은 장면을 씁니다.
 import * as THREE from '../vendor/three.module.min.js';
-import { POND, POT_PROFILE, potRadius, floorY, simulate, turtleHead } from './physics.js?v=4';
-import { drawFace, METALS, designKey, sanitizeDesign } from './coin-art.js?v=4';
+import { POND, POT_PROFILE, potRadius, floorY, simulate, turtleHead } from './physics.js?v=8';
+import { drawFace, METALS, designKey, sanitizeDesign } from './coin-art.js?v=8';
 
 const SUN = new THREE.Vector3(-0.38, 0.78, 0.5).normalize();
 const Y = new THREE.Vector3(0, 1, 0);
@@ -189,6 +189,19 @@ class Particles {
       } else if (this.kind[i] === 1) {
         this.vel[j] *= 0.96; this.vel[j + 1] = this.vel[j + 1] * 0.96 + 0.3 * dt; this.vel[j + 2] *= 0.96;
         this.alpha[i] = (1 - k) * (0.6 + 0.4 * Math.sin(this.age[i] * 30 + i));
+      } else if (this.kind[i] === 4) {
+        // 불꽃놀이 조각: 공기 저항 + 약한 중력, 끝에서 반짝반짝
+        const d = Math.exp(-2.4 * dt);
+        this.vel[j] *= d; this.vel[j + 1] = this.vel[j + 1] * d - 1.5 * dt; this.vel[j + 2] *= d;
+        this.alpha[i] = (1 - k * k) * (k > 0.55 ? 0.5 + 0.5 * Math.sin(this.age[i] * 38 + i) : 1);
+      } else if (this.kind[i] === 5) {
+        // 색종이: 하늘하늘 흔들리며 천천히 떨어짐
+        const a = this.age[i];
+        this.vel[j] += Math.sin(a * 5 + i) * dt * 1.6; this.vel[j + 2] += Math.cos(a * 4.3 + i) * dt * 1.6;
+        this.vel[j] *= Math.exp(-1.5 * dt); this.vel[j + 2] *= Math.exp(-1.5 * dt);
+        this.vel[j + 1] += (-0.75 - this.vel[j + 1]) * Math.min(1, dt * 2.2);
+        if (this.pos[j + 1] < 0.01) { this.life[i] = 0; this.alpha[i] = 0; continue; }
+        this.alpha[i] = (k < 0.85 ? 1 : (1 - k) / 0.15) * (0.75 + 0.25 * Math.sin(a * 11 + i));
       } else {
         this.vel[j] += (Math.random() - 0.5) * dt * 0.8;
         if (this.pos[j + 1] >= -0.01) { this.life[i] = 0; this.alpha[i] = 0; onPop && onPop(this.pos[j], this.pos[j + 2], 0.05); continue; }
@@ -432,6 +445,27 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
   const potGlow = new THREE.Mesh(new THREE.CircleGeometry(potRadius(1) - 0.05, 32), new THREE.MeshBasicMaterial({ color: 0xffc44d, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
   potGlow.rotation.x = -Math.PI / 2; potGlow.position.set(P.x, P.top - 0.02, P.z);
   scene.add(potGlow);
+  // 항아리 속 금화 더미: 들어간 동전이 바닥(안 보임) 대신 입구 가까이 쌓여 보이게. 동전이 들어갈수록 조금씩 차오름
+  let potCount = 0;
+  const potPileY = () => P.top - 0.17 + Math.min(0.1, potCount * 0.0025);
+  const POT_SPREAD = potRadius(0.84) - 0.045 - POND.COIN_R * 0.9;
+  const heapTex = canvasTex(256, 256, (c, w, h) => {
+    const g = c.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w / 2);
+    g.addColorStop(0, '#ffe08a'); g.addColorStop(1, '#b07a12'); c.fillStyle = g; c.fillRect(0, 0, w, h);
+    for (let i = 0; i < 140; i++) { // 겹겹이 쌓인 금화
+      const x = Math.random() * w, y = Math.random() * h, r = 9 + Math.random() * 8;
+      const cg = c.createRadialGradient(x - r * 0.3, y - r * 0.3, 1, x, y, r);
+      cg.addColorStop(0, '#fff3c4'); cg.addColorStop(0.6, '#e8b53e'); cg.addColorStop(1, '#8a5a08');
+      c.fillStyle = cg; c.beginPath(); c.ellipse(x, y, r, r * (0.6 + Math.random() * 0.4), Math.random() * 3, 0, Math.PI * 2); c.fill();
+    }
+  }, 1);
+  const heap = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 10, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ map: heapTex, metalness: 0.75, roughness: 0.32, emissive: 0xffc860, emissiveMap: heapTex, emissiveIntensity: 0.35 }));
+  function placeHeap() {
+    const y = potPileY(), u = (y - P.base) / (P.top - P.base);
+    const r = potRadius(u) - 0.05;
+    heap.scale.set(r, 0.07, r); heap.position.set(P.x, y - 0.075, P.z);
+  }
+  placeHeap(); scene.add(heap);
 
   /* --- 궁전 파사드 + 폭포 (바로크 분수 광장) --- */
   const FZ = -7.4; // 벽 앞면
@@ -565,13 +599,13 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
 
   // 무지개 (폭포 물보라 위)
   const rainbow = new THREE.Mesh(new THREE.RingGeometry(1.55, 1.95, 64, 1, 0, Math.PI), new THREE.ShaderMaterial({
-    uniforms: { uTime: shared.uTime },
+    uniforms: { uTime: shared.uTime, uBoost: { value: 0 } },
     vertexShader: 'varying vec2 vP; void main(){ vP=position.xy; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-    fragmentShader: `uniform float uTime; varying vec2 vP;
+    fragmentShader: `uniform float uTime; uniform float uBoost; varying vec2 vP;
       vec3 hsv(float h){ return clamp(abs(mod(h*6.+vec3(0.,4.,2.),6.)-3.)-1.,0.,1.); }
       void main(){ float r = (length(vP) - 1.55) / 0.4; float ang = atan(vP.y, vP.x);
         float fade = smoothstep(0., .5, ang) * smoothstep(3.1416, 2.64, ang) * smoothstep(0., .2, r) * smoothstep(1., .8, r);
-        gl_FragColor = vec4(hsv(0.83 - r * 0.83), fade * (0.2 + 0.06 * sin(uTime * 0.7))); }`,
+        gl_FragColor = vec4(hsv(0.83 - r * 0.83), fade * (0.2 + 0.06 * sin(uTime * 0.7)) * (1. + uBoost * 3.5)); }`,
     transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
   }));
   rainbow.position.set(0, -0.15, -3.75);
@@ -671,7 +705,7 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
   scene.add(fireflies);
 
   // 장면 애니메이션 (연잎 흔들림, 꽃잎 표류, 물줄기·폭포 물보라)
-  let jetParticles = null;
+  let jetParticles = null, jetBoost = 0;
   function animateScene(dt, time) {
     pads.forEach((g) => { g.position.y = 0.006 + Math.sin(time * 0.8 + g.userData.phase) * 0.004; g.rotation.z = Math.sin(time * 0.6 + g.userData.phase) * 0.02; });
     petalSeeds.forEach((p, i) => {
@@ -682,11 +716,14 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     });
     floatPetals.instanceMatrix.needsUpdate = true;
     if (jetParticles) {
+      // 성공하면 물줄기가 잠깐 높이 솟구침 (떨어지는 자리는 비슷하게: 가로 속도는 반비례)
+      const jb = 1 + jetBoost * 0.75;
       jets.forEach((j) => {
-        j.acc += dt * (low ? 40 : 70);
+        j.acc += dt * (low ? 40 : 70) * (1 + jetBoost * 0.6);
         while (j.acc >= 1) {
           j.acc -= 1;
-          jetParticles.spawn(j.x, j.y, j.z, j.vx * (0.96 + Math.random() * 0.08), j.vy * (0.97 + Math.random() * 0.06), j.vz * (0.96 + Math.random() * 0.08), 2, 0.026 + Math.random() * 0.012, 0.85, 0.97, 1, 3);
+          const gold = jetBoost > 0.05 && Math.random() < jetBoost * 0.35;
+          jetParticles.spawn(j.x, j.y, j.z, j.vx / jb * (0.96 + Math.random() * 0.08), j.vy * jb * (0.97 + Math.random() * 0.06), j.vz / jb * (0.96 + Math.random() * 0.08), 3, 0.026 + Math.random() * 0.012 + jetBoost * 0.01, gold ? 1 : 0.85, gold ? 0.86 : 0.97, gold ? 0.45 : 1, 3);
         }
       });
       if (Math.random() < dt * (low ? 25 : 45)) {
@@ -865,8 +902,131 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
       sparks.spawn(x + Math.cos(a) * r, y + Math.random() * 0.3, z + Math.sin(a) * r, Math.cos(a) * 0.4, 0.8 + Math.random() * 2.2, Math.sin(a) * 0.4, 1.4 + Math.random(), 0.035 + Math.random() * 0.04, 1, 0.85 + Math.random() * 0.15, 0.4 + Math.random() * 0.4, 1);
     }
     if (zone === 'pot') potGlowT = 0;
+    hypeFx(x, y, z, zone);
   }
   let potGlowT = -1;
+
+  /* --- 성공 도파민 팡팡: 불꽃놀이·충격파·색종이·금빛 비·번쩍·화면 흔들림 --- */
+  const fx = new Particles(low ? 700 : 1600, false); // 색이 진한 불꽃 조각·색종이 (밝은 낮 하늘에서도 잘 보이게 일반 블렌딩)
+  scene.add(fx.points);
+  const FW_COLS = [[1, 0.36, 0.55], [1, 0.78, 0.2], [0.35, 0.85, 1], [0.55, 1, 0.6], [0.78, 0.5, 1], [1, 0.55, 0.25], [1, 1, 1]];
+  const CONFETTI = [[1, 0.42, 0.62], [1, 0.8, 0.25], [0.3, 0.8, 0.95], [0.5, 0.92, 0.55], [0.72, 0.55, 1], [1, 1, 1]];
+  const rockets = [];
+  const fxListeners = [];
+  const emitFx = (type, d) => fxListeners.forEach((f) => f(type, d));
+  const shockMat = new THREE.MeshBasicMaterial({ color: 0xffd36b, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const shocks = Array.from({ length: 4 }, () => {
+    const m = new THREE.Mesh(new THREE.RingGeometry(0.86, 1, 72), shockMat.clone());
+    m.rotation.x = -Math.PI / 2; m.visible = false; scene.add(m); return { m, t: -1, d: 0, max: 3 };
+  });
+  let shockI = 0;
+  const hype = { t: -1, flash: 0, shake: 0 };
+  let baseFov = camera.fov;
+  function launchRocket(x0, y0, z0, x1, y1, z1, col) {
+    const T = 0.55 + Math.random() * 0.25; // 올라가는 시간
+    rockets.push({ x: x0, y: y0, z: z0, vx: (x1 - x0) / T, vy: (y1 - y0) / T + 0.5 * 2.2 * T, vz: (z1 - z0) / T, t: 0, T, col });
+    emitFx('launch', { x: x0, y: y0, z: z0 });
+  }
+  function burst(r) {
+    const n = low ? 70 : 140;
+    const [cr, cg, cb] = r.col;
+    const ring = Math.random() < 0.35; // 가끔 고리 모양
+    const sp = mode === 'pond' ? 2.6 : 1.9;
+    for (let i = 0; i < n; i++) {
+      let dx, dy, dz;
+      if (ring) { const a = (i / n) * Math.PI * 2; dx = Math.cos(a); dy = Math.sin(a) * 0.25; dz = Math.sin(a); }
+      else { const u = Math.random() * 2 - 1, a = Math.random() * Math.PI * 2, s = Math.sqrt(1 - u * u); dx = s * Math.cos(a); dy = u; dz = s * Math.sin(a); }
+      const v = sp * (ring ? 1 : 0.75 + Math.random() * 0.35);
+      const w = Math.random() < 0.18; // 흰 반짝이 섞기
+      fx.spawn(r.x, r.y, r.z, dx * v, dy * v + 0.3, dz * v, 1.3 + Math.random() * 0.7, 0.05 + Math.random() * 0.03, w ? 1 : cr, w ? 1 : cg, w ? 0.95 : cb, 4);
+    }
+    for (let i = 0; i < (low ? 14 : 28); i++) { // 가운데 금빛 섬광
+      const a = Math.random() * Math.PI * 2, e = Math.random() * Math.PI - Math.PI / 2;
+      sparks.spawn(r.x, r.y, r.z, Math.cos(a) * Math.cos(e) * 1.2, Math.sin(e) * 1.2, Math.sin(a) * Math.cos(e) * 1.2, 0.5 + Math.random() * 0.4, 0.09 + Math.random() * 0.06, 1, 0.9, 0.6, 1);
+    }
+    emitFx('burst', { x: r.x, y: r.y, z: r.z });
+  }
+  function shockwave(x, z, delay, max, color) {
+    const s = shocks[shockI]; shockI = (shockI + 1) % shocks.length;
+    s.t = 0; s.d = delay; s.max = max; s.m.position.set(x, 0.03, z); s.m.material.color.set(color);
+  }
+  function hypeFx(x, y, z, zone) {
+    const pot = zone === 'pot';
+    hype.t = 0; hype.flash = 1; hype.shake = 1; jetBoost = 1;
+    // 물결 + 금빛 충격파 고리
+    addRipple(x, z, 2.4); setTimeout(() => addRipple(x, z, 1.6), 220); setTimeout(() => addRipple(x, z, 1.1), 480);
+    shockwave(x, z, 0, 3.6, pot ? 0xffc04a : 0x9dffcf);
+    shockwave(x, z, 0.18, 2.6, 0xffe9a8);
+    shockwave(x, z, 0.36, 1.8, 0xffffff);
+    // 착지 자리에서 색종이 팡!
+    for (let i = 0; i < (low ? 70 : 150); i++) {
+      const a = Math.random() * Math.PI * 2, s = 0.4 + Math.random() * 1.4, c = CONFETTI[i % CONFETTI.length];
+      fx.spawn(x, y + 0.1, z, Math.cos(a) * s, 3.2 + Math.random() * 3.2, Math.sin(a) * s, 3.5 + Math.random() * 2, 0.045 + Math.random() * 0.035, c[0], c[1], c[2], 5);
+    }
+    // 하늘에서 금빛 반짝이 비
+    const rainN = low ? 60 : 130;
+    for (let i = 0; i < rainN; i++) {
+      setTimeout(() => {
+        const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * 3.2;
+        const gold = Math.random() < 0.7;
+        fx.spawn(x + Math.cos(a) * r, 3.4 + Math.random() * 1.6, z + Math.sin(a) * r, 0, -0.4, 0, 5, 0.04 + Math.random() * 0.03, 1, gold ? 0.82 : 1, gold ? 0.3 : 0.95, 5);
+      }, 400 + Math.random() * 1600);
+    }
+    // 불꽃놀이: 금빛 물고기 분수구 4곳 + 착지 자리 둘레에서 쏘아 올림
+    const n = low ? 6 : 9;
+    const hi = mode === 'pond' ? [2.8, 4.4] : [1.7, 2.8];
+    for (let i = 0; i < n; i++) {
+      setTimeout(() => {
+        let x0, y0, z0;
+        if (i < jets.length) { const j = jets[i]; x0 = j.x; y0 = j.y; z0 = j.z; }
+        else { const a = Math.random() * Math.PI * 2, r = 1 + Math.random() * 1.6; x0 = x + Math.cos(a) * r; y0 = 0.05; z0 = z + Math.sin(a) * r; }
+        const a = Math.random() * Math.PI * 2, r = 0.4 + Math.random() * 1.8;
+        launchRocket(x0, y0, z0, x + Math.cos(a) * r, hi[0] + Math.random() * (hi[1] - hi[0]), z + Math.sin(a) * r * 0.7, FW_COLS[(i + Math.floor(Math.random() * 3)) % FW_COLS.length]);
+      }, 150 + i * 230 + Math.random() * 140);
+    }
+  }
+  function updateHype(dt) {
+    for (let i = rockets.length - 1; i >= 0; i--) {
+      const r = rockets[i];
+      r.t += dt; r.vy -= 2.2 * dt;
+      r.x += r.vx * dt; r.y += r.vy * dt; r.z += r.vz * dt;
+      // 꼬리: 금빛 불티
+      sparks.spawn(r.x, r.y, r.z, (Math.random() - 0.5) * 0.2, -0.3, (Math.random() - 0.5) * 0.2, 0.35, 0.05, 1, 0.8, 0.45, 1);
+      if (Math.random() < 0.6) fx.spawn(r.x, r.y, r.z, (Math.random() - 0.5) * 0.3, -0.5, (Math.random() - 0.5) * 0.3, 0.5, 0.03, 1, 0.95, 0.8, 4);
+      if (r.t >= r.T) { burst(r); rockets.splice(i, 1); }
+    }
+    shocks.forEach((s) => {
+      if (s.t < 0) return;
+      s.t += dt;
+      const k = (s.t - s.d) / 0.95;
+      if (k < 0) { s.m.visible = false; return; }
+      if (k >= 1) { s.t = -1; s.m.visible = false; return; }
+      s.m.visible = true;
+      const e = 1 - Math.pow(1 - k, 3);
+      s.m.scale.setScalar(0.15 + e * s.max);
+      s.m.material.opacity = 0.95 * (1 - k);
+    });
+    if (hype.t >= 0) {
+      hype.t += dt;
+      hype.flash = Math.max(0, hype.flash - dt * 1.6);
+      hype.shake = Math.max(0, hype.shake - dt * 1.8);
+      jetBoost = Math.max(0, 1 - Math.max(0, hype.t - 2.2) / 1.5);
+      rainbow.material.uniforms.uBoost.value = Math.max(0, Math.sin(Math.min(1, hype.t / 4) * Math.PI));
+      if (hype.t > 4.5) { hype.t = -1; jetBoost = 0; rainbow.material.uniforms.uBoost.value = 0; }
+    }
+    renderer.toneMappingExposure = 0.82 + hype.flash * hype.flash * 0.45;
+    sun.intensity = 2.7 + hype.flash * 1.6;
+  }
+  /** 카메라 흔들림 + 살짝 줌 펀치 (lookAt 다음에 호출) */
+  function applyShake(time) {
+    const s = hype.shake * hype.shake;
+    if (s <= 0.0001) { if (camera.fov !== baseFov) { camera.fov = baseFov; camera.updateProjectionMatrix(); } return; }
+    camera.rotateX(Math.sin(time * 47) * 0.012 * s);
+    camera.rotateY(Math.sin(time * 39 + 1.3) * 0.012 * s);
+    camera.rotateZ(Math.sin(time * 31 + 2.1) * 0.008 * s);
+    camera.fov = baseFov * (1 - 0.07 * Math.sin(Math.min(1, (1 - hype.shake) * 2.2) * Math.PI));
+    camera.updateProjectionMatrix();
+  }
 
   /* --- 동전 --- */
   const COIN_SEG = low ? 32 : 48;
@@ -935,6 +1095,24 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     if (field.instanceColor) field.instanceColor.needsUpdate = true;
     cellAttr.needsUpdate = true;
   }
+  /** 항아리에 들어간 동전은 금화 더미 위 (입구 가까이)에 놓음 */
+  function potSpot(rest, out = new THREE.Vector3()) {
+    let dx = rest.x - P.x, dz = rest.z - P.z;
+    const d = Math.hypot(dx, dz), lim = POT_SPREAD;
+    if (d > lim) { dx *= lim / d; dz *= lim / d; }
+    const j = Math.abs(Math.sin((rest.yaw || 0) * 12.9898 + d * 78.233)); // 자리마다 살짝 다른 높이
+    return out.set(P.x + dx, potPileY() + j * 0.02, P.z + dz);
+  }
+  function potQuat(rest, q = new THREE.Quaternion()) {
+    restQuat(rest, q);
+    const a = (rest.yaw || 0) * 3.1;
+    return q.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(Math.cos(a), 0, Math.sin(a)), 0.18));
+  }
+  const zoneOf = (record, sim) => (record.land && record.land.zone) || (sim && sim.zone);
+  function addCoinAt(record, pos, quat, zone) {
+    addToField(record, pos, quat);
+    if (zone === 'pot') { potCount++; placeHeap(); }
+  }
   function restQuat(rest, q = new THREE.Quaternion()) {
     const n = new THREE.Vector3(rest.nx, rest.ny, rest.nz).normalize();
     q.setFromUnitVectors(Y, n);
@@ -985,6 +1163,10 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
       qImpact: null, qRest: restQuat(sim.rest), handFrom: opts.fromHand ? opts.fromHand.clone() : null, blend: opts.blend || 0.12,
       headQ: new THREE.Quaternion(), done: false, bubbleT: 0,
     };
+    if (zoneOf(record, sim) === 'pot') {
+      const L = record.land && Number.isFinite(record.land.x) ? record.land : sim.rest;
+      fl.potTo = potSpot(L); fl.qRest = potQuat(L);
+    }
     flights.push(fl);
     if (opts.follow) follow.target = fl;
     return sim;
@@ -995,6 +1177,12 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     const t = fl.t;
     framePos(sim, t, _a);
     if (fl.handFrom && t < fl.blend) { const k = t / fl.blend; _a.lerp(fl.handFrom, 1 - k * k * (3 - 2 * k)); }
+    if (fl.potTo && t > fl.impactT) {
+      // 항아리 안: 바닥까지 가라앉지 않고 금화 더미 위에 착 내려앉음
+      const k = Math.min(1, (t - fl.impactT) / 0.35);
+      _a.x += (fl.potTo.x - _a.x) * k; _a.z += (fl.potTo.z - _a.z) * k;
+      _a.y = Math.max(_a.y, fl.potTo.y);
+    }
     mesh.position.copy(_a);
     // 이벤트
     while (fl.ei < sim.events.length && sim.events[fl.ei].t <= t) {
@@ -1037,8 +1225,11 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
         mesh.quaternion.copy(fl.qRest);
         // 던진 폰이 저장한 착지 위치가 있으면 그걸 기준으로 (기기 간 버전 차이가 있어도 모두 같은 자리)
         const L = fl.record.land;
-        if (L && Number.isFinite(L.x)) { mesh.position.set(L.x, L.y, L.z); restQuat(L, mesh.quaternion); }
-        addToField(fl.record, mesh.position, mesh.quaternion);
+        const zone = zoneOf(fl.record, sim);
+        const R = L && Number.isFinite(L.x) ? L : sim.rest;
+        if (zone === 'pot') { potSpot(R, mesh.position); potQuat(R, mesh.quaternion); }
+        else if (R === L) { mesh.position.set(L.x, L.y, L.z); restQuat(L, mesh.quaternion); }
+        addCoinAt(fl.record, mesh.position, mesh.quaternion, zone);
         scene.remove(mesh);
         mesh.userData.dispose && mesh.userData.dispose();
         fl.opts.onDone && fl.opts.onDone(fl);
@@ -1048,9 +1239,12 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
 
   /** 이미 연못에 있는 동전 (애니메이션 없이 바로) */
   function placeCoin(record) {
-    const rest = record.land && Number.isFinite(record.land.x) ? record.land : simulate(record.launch).rest;
-    _p.set(rest.x, rest.y, rest.z);
-    addToField(record, _p, restQuat(rest, _q));
+    const has = record.land && Number.isFinite(record.land.x);
+    const sim = has ? null : simulate(record.launch);
+    const rest = has ? record.land : sim.rest;
+    const zone = zoneOf(record, sim);
+    if (zone === 'pot') addCoinAt(record, potSpot(rest, _p), potQuat(rest, _q), zone);
+    else addCoinAt(record, _p.set(rest.x, rest.y, rest.z), restQuat(rest, _q), zone);
   }
 
   /* --- 카메라 --- */
@@ -1070,6 +1264,7 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
       camHome.pos.set(c * 7.0, 2.7, sn * 7.0); camHome.look.set(-c * 2.2, 0.35, -sn * 2.2);
       camera.fov = asp < 0.75 ? 64 : 52;
     }
+    baseFov = camera.fov;
     camera.updateProjectionMatrix();
   }
   function resize() {
@@ -1079,7 +1274,7 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     setHome();
     const pr = renderer.getPixelRatio();
     reflRT.setSize(Math.max(64, Math.round(w * pr * reflScale)), Math.max(64, Math.round(h * pr * reflScale)));
-    [particles, sparks, bubblesP].forEach((p) => (p.mat.uniforms.uScale.value = h * pr * 0.9));
+    [particles, sparks, bubblesP, fx].forEach((p) => (p.mat.uniforms.uScale.value = h * pr * 0.9));
   }
   resize();
   camera.position.copy(camHome.pos); camLook.copy(camHome.look); camera.lookAt(camLook);
@@ -1207,6 +1402,22 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     s.scale.set(0.95, 0.27, 1);
     return s;
   }
+  // 박수 이모지 (박수 치는 사람 옆에 콩콩)
+  const clapTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const x = c.getContext('2d');
+    x.font = '92px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+    x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('👏', 64, 70);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  })();
+  const ease = (k) => k * k * (3 - 2 * k);
+  const mix = (a, b, k) => a + (b - a) * k;
+  const backOut = (k) => 1 + 2.4 * Math.pow(k - 1, 3) + 1.4 * Math.pow(k - 1, 2);
+  const TAU = Math.PI * 2;
+  const HIP = 0.22; // 몸을 젖히고 숙이는 축 높이
+  const HEAD_COIN = 1.42;
+
   function makePerson(p, slot) {
     const h = hashStr(p.uid);
     const g = new THREE.Group();
@@ -1214,9 +1425,11 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     const shirt = new THREE.MeshStandardMaterial({ color: SHIRTS[(h >>> 3) % SHIRTS.length], roughness: 0.55 });
     const hairM = new THREE.MeshStandardMaterial({ color: HAIRS[(h >>> 7) % HAIRS.length], roughness: 0.5 });
     const dark = new THREE.MeshStandardMaterial({ color: 0x2c2a35, roughness: 0.4 });
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.28, 6, 16), shirt); body.position.y = 0.42; g.add(body);
     [-0.09, 0.09].forEach((x) => { const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.16, 4, 10), dark); leg.position.set(x, 0.12, 0); g.add(leg); });
-    const headG = new THREE.Group(); headG.position.y = 0.86; g.add(headG);
+    // 몸통 묶음: 다리는 땅에 두고 위쪽만 젖히고·숙이고·비틀기
+    const rig = new THREE.Group(); rig.position.y = HIP; g.add(rig);
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.28, 6, 16), shirt); body.position.y = 0.42 - HIP; rig.add(body);
+    const headG = new THREE.Group(); headG.position.y = 0.86 - HIP; rig.add(headG);
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 28, 20), skin); headG.add(head);
     const hair = new THREE.Mesh(new THREE.SphereGeometry(0.255, 28, 14, 0, Math.PI * 2, 0, Math.PI * 0.55), hairM); hair.rotation.x = -0.25; headG.add(hair);
     if (h % 3 === 0) { const bun = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 10), hairM); bun.position.set(0, 0.24, -0.08); headG.add(bun); }
@@ -1228,17 +1441,20 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.007, 6, 12, Math.PI), new THREE.MeshBasicMaterial({ color: 0x8a4a4a }));
     mouth.rotation.z = Math.PI; mouth.position.set(0, -0.07, 0.228); headG.add(mouth);
     const arms = [-1, 1].map((sx) => {
-      const pivot = new THREE.Group(); pivot.position.set(sx * 0.22, 0.6, 0);
+      const pivot = new THREE.Group(); pivot.position.set(sx * 0.22, 0.6 - HIP, 0);
       const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.2, 4, 10), shirt); arm.position.y = -0.14; pivot.add(arm);
       const hand = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), skin); hand.position.y = -0.28; pivot.add(hand);
-      pivot.rotation.z = sx * 0.25; g.add(pivot); return pivot;
+      pivot.userData.hand = hand;
+      pivot.rotation.z = sx * 0.25; rig.add(pivot); return pivot;
     });
     // 머리 위 동전 (각자 꾸민 디자인)
     const coin = makeCoinMesh(p.design || { metal: 'gold', rim: 'dots', stamp: '🐢', text: '소원', back: '' }, 256);
-    coin.scale.setScalar(1.6); coin.position.y = 1.42; g.add(coin);
+    coin.scale.setScalar(1.6); coin.position.y = HEAD_COIN; g.add(coin);
     const halo = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.26, 32), new THREE.MeshBasicMaterial({ color: 0xffe6a0, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-    halo.position.y = 1.42; g.add(halo);
+    halo.position.y = HEAD_COIN; g.add(halo);
     const tag = nameTag(p.nick || '익명'); tag.position.y = 1.86; tag.renderOrder = 20; g.add(tag);
+    const clap = new THREE.Sprite(new THREE.SpriteMaterial({ map: clapTex, transparent: true, depthWrite: false, opacity: 0 }));
+    clap.position.set(h % 2 ? 0.42 : -0.42, 1.0, 0); clap.scale.setScalar(0.4); clap.visible = false; clap.renderOrder = 19; g.add(clap);
     // 폰이 고른 자리(spot)가 있으면 그 자리에, 없으면 빈 칸에
     const hasSpot = Number.isFinite(+p.spot);
     const a = hasSpot ? +p.spot : SLOTS[slot % SLOTS.length];
@@ -1249,12 +1465,18 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     shadow(g, true, false);
     tag.castShadow = false;
     scene.add(g);
-    return { uid: p.uid, g, coin, halo, arms, headG, tag, slot, key: designKey(sanitizeDesign(p.design || {})) + '|' + (p.nick || '') + '|' + (p.spot ?? ''), born: shared.uTime.value, leaving: -1, throwT: -1, phase: (h % 100) / 16 };
+    return {
+      uid: p.uid, g, rig, body, coin, halo, arms, headG, mouth, tag, clap, slot,
+      key: designKey(sanitizeDesign(p.design || {})) + '|' + (p.nick || '') + '|' + (p.spot ?? ''),
+      born: shared.uTime.value, leaving: -1, phase: (h % 100) / 16,
+      throwT: -1, onRelease: null, cheerT: -1, clapT: null, clapAt: null,
+    };
   }
   function disposePerson(ps) {
     scene.remove(ps.g);
     ps.coin.userData.dispose && ps.coin.userData.dispose();
     ps.tag.material.map.dispose(); ps.tag.material.dispose();
+    ps.clap.material.dispose();
   }
   function setPeople(list) {
     const live = new Set(list.map((p) => p.uid));
@@ -1265,22 +1487,43 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
       const ex = people.get(p.uid);
       if (ex && ex.key === key) { if (ex.leaving >= 0) { ex.leaving = -1; ex.born = -10; used.add(ex.slot); } return; } // 잠깐 끊겼다 돌아오면 퇴장 취소
       let slot;
-      if (ex) { slot = ex.slot; disposePerson(ex); people.delete(p.uid); }
+      if (ex) { slot = ex.slot; if (ex.onRelease) releaseNow(ex); disposePerson(ex); people.delete(p.uid); }
       else { slot = 0; while (used.has(slot)) slot++; used.add(slot); }
       const ps = makePerson(p, slot);
       if (ex && ex.leaving < 0) ps.born = -10; // 디자인만 바뀐 경우 튀어나오지 않게
       people.set(p.uid, ps);
     });
   }
-  const _hand = new THREE.Vector3();
-  /** 그 사람이 던지는 동작을 하고, 손 위치를 돌려줌 (없으면 null) */
-  function personThrow(uid) {
-    const ps = uid && people.get(uid);
-    if (!ps || ps.leaving >= 0) return null;
-    ps.throwT = 0;
+  function handWorld(ps) {
     ps.g.updateMatrixWorld(true);
-    return ps.coin.getWorldPosition(_hand).clone();
+    return ps.arms[1].userData.hand.getWorldPosition(new THREE.Vector3());
   }
+  function releaseNow(ps) { const f = ps.onRelease; ps.onRelease = null; f && f(handWorld(ps)); }
+  /**
+   * 그 사람이 팔을 크게 휘둘러 던지는 동작을 시작. 손에서 동전이 떠나는 순간 onRelease(손 위치)를 불러 줌.
+   * 그 사람이 없으면 false (바로 던지면 됨)
+   */
+  function personThrow(uid, onRelease) {
+    const ps = uid && people.get(uid);
+    if (!ps || ps.leaving >= 0) return false;
+    if (ps.onRelease) releaseNow(ps); // 아직 던지는 중이면 앞의 동전은 바로 놓기
+    ps.throwT = 0; ps.onRelease = onRelease || null; ps.cheerT = -1;
+    return true;
+  }
+  /** 누군가 성공! 그 사람은 만세하며 콩콩 뛰고, 나머지는 그쪽을 보며 박수. 박수 치는 사람 수를 돌려줌 */
+  function celebrate(uid, x, z) {
+    const hero = uid && people.get(uid);
+    const at = hero && hero.leaving < 0 ? hero.g.position.clone() : new THREE.Vector3(x, 0, z);
+    let n = 0;
+    people.forEach((ps, id) => {
+      if (ps.leaving >= 0) return;
+      if (id === uid) { ps.cheerT = 0; return; }
+      ps.clapT = -(0.12 + Math.random() * 0.45); // 사람마다 조금씩 늦게 (자연스럽게)
+      ps.clapAt = at; n++;
+    });
+    return n;
+  }
+  const _lp = new THREE.Vector3();
   function updatePeople(dt, time) {
     people.forEach((ps, uid) => {
       const age = time - ps.born;
@@ -1288,29 +1531,101 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
       s = s < 1 ? 1 + Math.sin(s * Math.PI) * 0.25 - (1 - s) : 1;
       if (ps.leaving >= 0) {
         const k = (time - ps.leaving) / 0.5;
-        if (k >= 1) { disposePerson(ps); people.delete(uid); return; }
+        if (k >= 1) { if (ps.onRelease) releaseNow(ps); disposePerson(ps); people.delete(uid); return; }
         s = 1 - k;
       }
       ps.g.scale.setScalar(Math.max(0.001, s) * 1.45);
       const bob = Math.sin(time * 2.2 + ps.phase);
-      ps.headG.rotation.z = bob * 0.06;
-      ps.g.children[0].position.y = 0.42 + Math.abs(bob) * 0.015;
-      ps.arms[0].rotation.x = Math.sin(time * 2.2 + ps.phase) * 0.12;
-      let armR = Math.sin(time * 2.2 + ps.phase + 1) * 0.12, coinVis = 1;
+      // 기본 자세: 살랑살랑
+      let armL = Math.sin(time * 2.2 + ps.phase) * 0.12, armR = Math.sin(time * 2.2 + ps.phase + 1) * 0.12;
+      let zL = -0.25, zR = 0.25, lean = 0, twist = 0, hop = 0, headYaw = 0, grin = 0, spin = 1.6;
+      let coinHand = 0, coinShow = true, coinPop = 1, clapW = 0, beat = 0;
+
       if (ps.throwT >= 0) {
+        // 던지기: 와인드업(팔 뒤로·몸 젖히고 왼팔로 조준) → 머리 위로 휙! → 팔로스루 → 제자리
         ps.throwT += dt;
-        const k = ps.throwT / 0.7;
-        armR = k < 0.35 ? -2.6 * (k / 0.35) : -2.6 + 2.6 * Math.min(1, (k - 0.35) / 0.65);
-        coinVis = k < 0.15 ? 1 : k < 1 ? 0 : 1;
-        if (k >= 1.4) ps.throwT = -1;
+        const t = ps.throwT;
+        if (t < 0.36) {
+          const k = ease(t / 0.36);
+          armR = mix(armR, 2.55, k); armL = mix(armL, -1.3, k); lean = -0.2 * k; twist = 0.4 * k;
+          coinHand = ease(Math.min(1, t / 0.22));
+        } else if (t < 0.52) {
+          const e = Math.pow((t - 0.36) / 0.16, 2);
+          armR = mix(2.55, 4.85, e); armL = mix(-1.3, 0.55, e); lean = mix(-0.2, 0.34, e); twist = mix(0.4, -0.35, e);
+          coinHand = 1;
+        } else if (t < 0.85) {
+          const k = ease((t - 0.52) / 0.33);
+          armR = mix(4.85, 5.8, k); armL = mix(0.55, 0.7, k); lean = mix(0.34, 0.24, k); twist = -0.35;
+        } else if (t < 1.35) {
+          const k = ease((t - 0.85) / 0.5);
+          armR = mix(5.8, TAU + armR, k); armL = mix(0.7, armL, k); lean = mix(0.24, 0, k); twist = mix(-0.35, 0, k);
+        } else ps.throwT = -1;
+        if (t >= 0.5) coinHand = 0;
+        if (t >= 0.5 && t < 1.05) coinShow = false;
+        else if (t >= 1.05) coinPop = backOut(Math.min(1, (t - 1.05) / 0.3)); // 머리 위에 새 동전이 뿅
+      } else if (ps.cheerT >= 0) {
+        // 성공한 사람: 만세! 두 팔 번쩍 흔들고 콩콩 점프, 동전도 신나게 핑글핑글
+        ps.cheerT += dt;
+        const t = ps.cheerT, D = 3;
+        const w = ease(Math.min(1, t / 0.25)) * (t > D - 0.4 ? Math.max(0, (D - t) / 0.4) : 1);
+        const wave = Math.sin(t * 15);
+        armR = mix(armR, -(Math.PI - 0.2) + wave * 0.28, w); armL = mix(armL, -(Math.PI - 0.2) - wave * 0.28, w);
+        zR = mix(0.25, 0.6, w); zL = mix(-0.25, -0.6, w);
+        hop = Math.abs(Math.sin(t * Math.PI * 2.6)) * 0.17 * w;
+        twist = Math.sin(t * 6) * 0.18 * w; lean = -0.08 * w; grin = w; spin = 1.6 + 12 * w;
+        if (t >= D) ps.cheerT = -1;
+      } else if (ps.clapT !== null) {
+        // 다른 사람: 성공한 쪽을 바라보며 짝짝짝
+        ps.clapT += dt;
+        const t = ps.clapT, D = 2.8;
+        if (t >= 0) {
+          clapW = ease(Math.min(1, t / 0.2)) * (t > D - 0.35 ? Math.max(0, (D - t) / 0.35) : 1);
+          beat = Math.pow(0.5 + 0.5 * Math.sin(t * TAU * 3.3 - Math.PI / 2), 2.5); // 1이면 손바닥이 맞닿음
+          armL = mix(armL, -1.2, clapW); armR = mix(armR, -1.2, clapW);
+          zL = mix(-0.25, 0.48 + 0.42 * beat, clapW); zR = mix(0.25, -(0.48 + 0.42 * beat), clapW);
+          hop = Math.abs(Math.sin(t * TAU * 1.65)) * 0.045 * clapW;
+          _lp.copy(ps.clapAt); ps.g.worldToLocal(_lp);
+          const look = Math.max(-1.1, Math.min(1.1, Math.atan2(_lp.x, _lp.z)));
+          twist = look * 0.55 * clapW; headYaw = look * 0.45 * clapW; lean = 0.06 * clapW; grin = clapW; spin = 1.6 + 4 * clapW;
+          if (t >= D) { ps.clapT = null; clapW = 0; }
+        }
       }
-      ps.arms[1].rotation.x = armR;
-      ps.coin.visible = ps.halo.visible = coinVis > 0;
-      ps.coin.rotation.set(Math.PI / 2, 0, time * 1.6 + ps.phase, 'XZY');
-      ps.coin.position.y = 1.42 + Math.sin(time * 1.8 + ps.phase) * 0.04;
-      ps.halo.position.y = ps.coin.position.y;
+
+      ps.g.position.y = POND.GROUND + hop;
+      ps.body.position.y = 0.42 - HIP + Math.abs(bob) * 0.015;
+      ps.rig.rotation.set(lean, twist, 0);
+      ps.headG.rotation.set(-lean * 0.4, headYaw, bob * 0.06 * (1 - grin * 0.5));
+      ps.arms[0].rotation.set(armL, 0, zL);
+      ps.arms[1].rotation.set(armR, 0, zR);
+      ps.mouth.scale.set(1 + grin * 0.35, 1 + grin * 1.3, 1);
+
+      // 동전: 머리 위 ↔ 던지는 손
+      ps.coin.visible = coinShow;
+      ps.coin.rotation.set(Math.PI / 2, 0, time * spin + ps.phase, 'XZY');
+      const headY = HEAD_COIN + Math.sin(time * 1.8 + ps.phase) * 0.04;
+      if (coinHand > 0) {
+        ps.g.updateMatrixWorld(true);
+        ps.g.worldToLocal(ps.arms[1].userData.hand.getWorldPosition(_lp));
+        ps.coin.position.set(_lp.x * coinHand, mix(headY, _lp.y + 0.04, coinHand), _lp.z * coinHand);
+        ps.coin.scale.setScalar(mix(1.6, 0.85, coinHand));
+      } else {
+        ps.coin.position.set(0, headY, 0);
+        ps.coin.scale.setScalar(1.6 * Math.max(0.001, coinPop));
+      }
+      ps.halo.visible = coinShow && coinHand === 0;
+      ps.halo.position.y = headY;
+      ps.halo.scale.setScalar(Math.max(0.001, coinPop) * (1 + grin * 0.4));
       ps.halo.lookAt(camera.position);
-      ps.halo.material.opacity = 0.35 + 0.2 * Math.sin(time * 3 + ps.phase);
+      ps.halo.material.opacity = 0.35 + 0.2 * Math.sin(time * 3 + ps.phase) + grin * 0.3;
+      // 👏
+      ps.clap.visible = clapW > 0.01;
+      if (ps.clap.visible) {
+        ps.clap.material.opacity = clapW;
+        ps.clap.scale.setScalar((0.34 + beat * 0.14) * clapW);
+        ps.clap.position.y = 1.0 + beat * 0.05;
+      }
+      // 손에서 동전이 떠나는 순간
+      if (ps.onRelease && ps.throwT >= 0.5) releaseNow(ps);
     });
   }
 
@@ -1352,6 +1667,8 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
       potGlow.material.opacity = Math.max(0, 0.8 * Math.sin(Math.min(1, potGlowT / 2) * Math.PI));
       if (potGlowT > 2) potGlowT = -1;
     }
+    fx.update(dt);
+    updateHype(dt);
     animateScene(dt, time);
     if (people.size) updatePeople(dt, time);
 
@@ -1379,6 +1696,7 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
       camLook.lerp(wantLook, lerp);
       camera.lookAt(camLook);
     }
+    applyShake(time);
 
     // 손 동전
     if (handCoin && handCoin.parent === camera) {
@@ -1405,7 +1723,9 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     flipHandCoin() { handFlip ^= 1; },
     /** 폰: 내가 서서 던지는 자리 (연못 둘레 각도) */
     setThrowSpot(ang) { throwAng = ang; setHome(); },
-    setPeople, personThrow,
+    setPeople, personThrow, celebrate,
+    /** 성공 연출 신호: (type: 'launch'|'burst', {x,y,z}) — 효과음 맞추기용 */
+    onFx: (f) => fxListeners.push(f),
     /** 방금 드래그했으면 true (탭과 구분) */
     justDragged() { return performance.now() - orbit.lastDrag < 250; },
     onFrame: (f) => listeners.push(f),

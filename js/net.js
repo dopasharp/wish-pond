@@ -103,8 +103,9 @@ async function firebaseApi(role) {
       await d.set(ref(`wishes/${id}`), { text, zone, uid, at: d.serverTimestamp() });
       return id;
     },
-    // 응원·신고: 한 사람당 한 번 기록(wishCheers, 아무도 안 읽음) + 소원에는 숫자만 올림 → 소원 목록이 가볍게 유지돼요.
+    // 응원·하트·신고: 한 사람당 한 번 기록(wishCheers, 아무도 안 읽음) + 소원에는 숫자만 올림 → 소원 목록이 가볍게 유지돼요.
     cheer(id, current) { return bump('wishCheers', 'n', id, current); },
+    heart(id, current) { return bump('wishHearts', 'h', id, current); },
     report(id, current) { return bump('wishReports', 'r', id, current); },
     setPresence(next) {
       info = { nick: String(next.nick || '').slice(0, 10), design: next.design || null, spot: Number.isFinite(next.spot) ? +(+next.spot).toFixed(4) : null };
@@ -130,8 +131,9 @@ async function firebaseApi(role) {
 
 function wishView(id, w, uid) {
   const cheers = w.n || 0;
+  const hearts = w.h || 0;
   const reports = w.r || 0;
-  return { id, text: w.text, zone: w.zone, at: w.at, cheers, reports, mine: w.uid === uid, hidden: reports >= 3 };
+  return { id, text: w.text, zone: w.zone, at: w.at, cheers, hearts, reports, mine: w.uid === uid, hidden: reports >= 3 };
 }
 
 // ---------------------------------------------------------------- local mode
@@ -201,6 +203,10 @@ function localApi(role) {
     async cheer(id) {
       const x = db(); const w = x.wishes[id]; if (!w) return;
       w.n = (w.n || 0) + 1; save(x); ch.postMessage({ type: 'wishes' }); emitWishes();
+    },
+    async heart(id) {
+      const x = db(); const w = x.wishes[id]; if (!w) return;
+      w.h = (w.h || 0) + 1; save(x); ch.postMessage({ type: 'wishes' }); emitWishes();
     },
     async report(id) {
       const x = db(); const w = x.wishes[id]; if (!w) return;
