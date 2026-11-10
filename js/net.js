@@ -1,7 +1,7 @@
 // 연못 <-> 폰 연동 레이어.
 // - firebase: Realtime Database + 익명 로그인 (서로 다른 기기 간 연동, 동전이 계속 남음)
 // - local:    localStorage + BroadcastChannel (같은 브라우저의 탭끼리, Firebase 설정 전 테스트용)
-import { firebaseConfig } from './firebase-config.js?v=1';
+import { firebaseConfig } from './firebase-config.js?v=2';
 
 const ROOT = 'wishPond';
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2';

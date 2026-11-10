@@ -1,6 +1,6 @@
 // 던지는 폰: 닉네임 → 동전 꾸미기 → 소원 → 3번 던지기 → 결과 → (성공 시) 익명 게시판
 import { createWorld } from './world.js?v=1';
-import { connect, mode, newId } from './net.js?v=1';
+import { connect, mode, newId } from './net.js?v=2';
 import { windAt, simulate, scoreOf, isSuccess } from './physics.js?v=1';
 import { METALS, RIMS, STAMPS, DEFAULT_DESIGN, sanitizeDesign } from './coin-art.js?v=1';
 import { ZONES, SHOTS, shotMessage, finalResult, timeAgo, esc } from './game.js?v=1';

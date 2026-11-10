@@ -1,6 +1,6 @@
 // 연못 화면: 모든 사람의 동전이 실시간으로 날아와 쌓이고, 성취한 소원이 흘러가요.
 import { createWorld } from './world.js?v=1';
-import { connect, mode } from './net.js?v=1';
+import { connect, mode } from './net.js?v=2';
 import { windAt } from './physics.js?v=1';
 import { faceDataURL } from './coin-art.js?v=1';
 import { ZONES, timeAgo, esc } from './game.js?v=1';
