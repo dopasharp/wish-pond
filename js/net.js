@@ -43,6 +43,23 @@ async function firebaseApi(role) {
     d.set(me, { ...info, role, at: d.serverTimestamp() });
   });
 
+  async function bump(log, field, id, current) {
+    let n = current || 0;
+    for (let i = 0; i < 4; i++) {
+      try {
+        await d.update(ref(), { [`${log}/${id}/${uid}`]: true, [`wishes/${id}/${field}`]: n + 1 });
+        return n + 1;
+      } catch (e) {
+        // 그 사이 다른 사람이 먼저 눌렀으면 최신 숫자로 다시
+        const snap = await d.get(ref(`wishes/${id}/${field}`));
+        n = snap.val() || 0;
+        const done = await d.get(ref(`${log}/${id}/${uid}`)).catch(() => null);
+        if (done && done.exists()) return n;
+      }
+    }
+    throw new Error('BUMP_FAILED');
+  }
+
   return {
     mode, uid,
     async watchCoins(limit, onCoin) {
@@ -73,27 +90,35 @@ async function firebaseApi(role) {
       await d.set(ref(`wishes/${id}`), { text, zone, uid, at: d.serverTimestamp() });
       return id;
     },
-    cheer(id) { return d.set(ref(`wishes/${id}/cheers/${uid}`), true); },
-    report(id) { return d.set(ref(`wishes/${id}/reports/${uid}`), true); },
+    // 응원·신고: 한 사람당 한 번 기록(wishCheers, 아무도 안 읽음) + 소원에는 숫자만 올림 → 소원 목록이 가볍게 유지돼요.
+    cheer(id, current) { return bump('wishCheers', 'n', id, current); },
+    report(id, current) { return bump('wishReports', 'r', id, current); },
     setPresence(next) {
       info = { nick: String(next.nick || '').slice(0, 10), design: next.design || null };
       d.update(me, info).catch(() => {});
     },
     // cb([{ uid, nick, design }]) — 지금 접속한 던지는 사람들
+    // 화면을 꺼 두면 연결을 끊어 동시 접속 수·데이터를 아낌 (돌아오면 다시 연결)
+    sleep() { d.goOffline(db); },
+    wake() { d.goOnline(db); },
+    // 바뀐 사람만 받아오도록 child 이벤트 사용 (전체 목록을 매번 다시 받지 않음)
     watchPresence(cb) {
-      d.onValue(ref('presence'), (s) => {
-        const list = [];
-        s.forEach((c) => { const v = c.val(); if (v && v.role === 'thrower') list.push({ uid: c.key, nick: v.nick || '', design: v.design || null }); });
-        cb(list);
-      });
+      const map = new Map();
+      let t;
+      const emit = () => { clearTimeout(t); t = setTimeout(() => cb([...map.values()]), 150); };
+      const put = (c) => { const v = c.val(); if (v && v.role === 'thrower') map.set(c.key, { uid: c.key, nick: v.nick || '', design: v.design || null }); else map.delete(c.key); emit(); };
+      d.onChildAdded(ref('presence'), put);
+      d.onChildChanged(ref('presence'), put);
+      d.onChildRemoved(ref('presence'), (c) => { map.delete(c.key); emit(); });
+      emit();
     },
   };
 }
 
 function wishView(id, w, uid) {
-  const cheers = w.cheers ? Object.keys(w.cheers).length : 0;
-  const reports = w.reports ? Object.keys(w.reports).length : 0;
-  return { id, text: w.text, zone: w.zone, at: w.at, cheers, cheered: !!(w.cheers && w.cheers[uid]), mine: w.uid === uid, hidden: reports >= 3 };
+  const cheers = w.n || 0;
+  const reports = w.r || 0;
+  return { id, text: w.text, zone: w.zone, at: w.at, cheers, reports, mine: w.uid === uid, hidden: reports >= 3 };
 }
 
 // ---------------------------------------------------------------- local mode
@@ -162,13 +187,14 @@ function localApi(role) {
     },
     async cheer(id) {
       const x = db(); const w = x.wishes[id]; if (!w) return;
-      (w.cheers ||= {})[uid] = true; save(x); ch.postMessage({ type: 'wishes' }); emitWishes();
+      w.n = (w.n || 0) + 1; save(x); ch.postMessage({ type: 'wishes' }); emitWishes();
     },
     async report(id) {
       const x = db(); const w = x.wishes[id]; if (!w) return;
-      (w.reports ||= {})[uid] = true; save(x); ch.postMessage({ type: 'wishes' }); emitWishes();
+      w.r = (w.r || 0) + 1; save(x); ch.postMessage({ type: 'wishes' }); emitWishes();
     },
     setPresence(next) { info = { nick: next.nick || '', design: next.design || null }; hello(); },
     watchPresence(cb) { subs.presence.push(cb); emitPresence(); },
+    sleep() {}, wake() {},
   };
 }

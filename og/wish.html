@@ -23,8 +23,8 @@
 <div class="t"><h1>소원의 연못</h1><p>내가 꾸민 동전을 던져 소원을 빌어요<br>거북 등에 올리면 <b>대길!</b></p></div>
 <div class="brand">도파# · GAME 009</div>
 <script type="module">
-import { createWorld } from '../js/world.js';
-import { simulate, mulberry32 } from '../js/physics.js';
+import { createWorld } from '../js/world.js?v=3';
+import { simulate, mulberry32 } from '../js/physics.js?v=3';
 const w = createWorld(document.getElementById('c'), { mode: 'pond', quality: 'high' });
 const r = mulberry32(7);
 const metals = ['gold', 'silver', 'bronze', 'rose', 'jade'];

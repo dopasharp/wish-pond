@@ -1,7 +1,7 @@
 // 3D 연못. 연못 화면(pond)과 던지는 폰(thrower)이 같은 장면을 씁니다.
 import * as THREE from '../vendor/three.module.min.js';
-import { POND, POT_PROFILE, potRadius, floorY, simulate, turtleHead } from './physics.js';
-import { drawFace, METALS, designKey, sanitizeDesign } from './coin-art.js';
+import { POND, POT_PROFILE, potRadius, floorY, simulate, turtleHead } from './physics.js?v=3';
+import { drawFace, METALS, designKey, sanitizeDesign } from './coin-art.js?v=3';
 
 const SUN = new THREE.Vector3(-0.38, 0.78, 0.5).normalize();
 const Y = new THREE.Vector3(0, 1, 0);
@@ -1079,6 +1079,64 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
   camera.position.copy(camHome.pos); camLook.copy(camHome.look); camera.lookAt(camLook);
   addEventListener('resize', resize);
 
+  /* --- 연못 화면: 드래그로 둘러보기 / 휠·핀치 확대 / 가만히 두면 천천히 혼자 둘러봄 --- */
+  const orbit = { az: 0, el: 0, dist: 1, userAz: 0, userEl: 0, userZoom: 1, idle: 99, dragging: false, moved: 0, lastDrag: -1 };
+  if (mode === 'pond') {
+    const pts = new Map();
+    let pinch0 = 0, zoom0 = 1;
+    canvas.addEventListener('pointerdown', (e) => {
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      canvas.setPointerCapture(e.pointerId);
+      orbit.dragging = true; orbit.moved = 0; orbit.idle = 0;
+      if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch0 = Math.hypot(a.x - b.x, a.y - b.y); zoom0 = orbit.userZoom; }
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      const p = pts.get(e.pointerId); if (!p) return;
+      const dx = e.clientX - p.x, dy = e.clientY - p.y;
+      p.x = e.clientX; p.y = e.clientY;
+      orbit.idle = 0;
+      if (pts.size === 2) {
+        const [a, b] = [...pts.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinch0) orbit.userZoom = Math.min(1.5, Math.max(0.6, zoom0 * pinch0 / d));
+        orbit.moved += 10;
+      } else {
+        orbit.moved += Math.abs(dx) + Math.abs(dy);
+        orbit.userAz = Math.min(1.1, Math.max(-1.1, orbit.userAz - dx * 0.0035)); // 궁전 뒤로는 못 넘어가게
+        orbit.userEl = Math.min(0.5, Math.max(-0.3, orbit.userEl + dy * 0.003));
+      }
+    });
+    const up = (e) => { pts.delete(e.pointerId); if (!pts.size) { orbit.dragging = false; if (orbit.moved > 6) orbit.lastDrag = performance.now(); } };
+    canvas.addEventListener('pointerup', up);
+    canvas.addEventListener('pointercancel', up);
+    canvas.addEventListener('wheel', (e) => { e.preventDefault(); orbit.idle = 0; orbit.userZoom = Math.min(1.5, Math.max(0.6, orbit.userZoom * Math.exp(e.deltaY * 0.001))); }, { passive: false });
+  }
+  const orbitTarget = new THREE.Vector3();
+  function updateOrbit(dt, time) {
+    orbit.idle += dt;
+    // 10초 동안 손대지 않으면 천천히 처음 시점 근처로 돌아가며 자동 감상 모드
+    if (orbit.idle > 10 && !orbit.dragging) {
+      const k = 1 - Math.exp(-dt * 0.35);
+      orbit.userAz *= 1 - k;
+      orbit.userEl *= 1 - k; orbit.userZoom += (1 - orbit.userZoom) * k;
+    }
+    const auto = orbit.idle > 4 ? 1 : 0;
+    orbit.autoMix = (orbit.autoMix || 0) + (auto - (orbit.autoMix || 0)) * (1 - Math.exp(-dt * 0.6));
+    const az = orbit.userAz + orbit.autoMix * (Math.sin(time * 0.045) * 0.55);
+    const elAuto = orbit.autoMix * Math.sin(time * 0.031 + 1) * 0.08;
+    const zAuto = 1 + orbit.autoMix * Math.sin(time * 0.027) * 0.1;
+    // 기준: 처음 시점의 거리·높이각
+    orbitTarget.copy(camHome.look);
+    const rel = _v.copy(camHome.pos).sub(orbitTarget);
+    const dist = rel.length() * orbit.userZoom * zAuto;
+    const baseEl = Math.asin(rel.y / rel.length());
+    const el = Math.min(1.25, Math.max(0.3, baseEl + orbit.userEl + elAuto));
+    const want = _t.set(Math.sin(az) * Math.cos(el) * dist, Math.sin(el) * dist, Math.cos(az) * Math.cos(el) * dist).add(orbitTarget);
+    const k = 1 - Math.exp(-dt * (orbit.dragging ? 10 : 3));
+    camera.position.lerp(want, k);
+    camLook.lerp(orbitTarget, k);
+    camera.lookAt(camLook);
+  }
+
   /* --- 손에 든 동전 (던지는 폰) --- */
   let handCoin = null, handMode = 'hidden', handDrag = { x: 0, y: 0 }, handFlip = 0;
   const handPose = { edit: new THREE.Vector3(0, 0.3, -0.9), ready: new THREE.Vector3(0, -0.36, -0.95) };
@@ -1303,13 +1361,12 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
       wantPos = follow.lastPos || wantPos; wantLook = follow.last || wantLook;
     }
     if (mode === 'pond') {
-      const drift = _t.set(Math.sin(time * 0.07) * 0.35, Math.sin(time * 0.05) * 0.12, 0);
-      camera.position.lerp(_v.copy(wantPos).add(drift), lerp * 0.5);
+      updateOrbit(dt, time);
     } else {
       camera.position.lerp(wantPos, lerp);
+      camLook.lerp(wantLook, lerp);
+      camera.lookAt(camLook);
     }
-    camLook.lerp(wantLook, lerp);
-    camera.lookAt(camLook);
 
     // 손 동전
     if (handCoin && handCoin.parent === camera) {
@@ -1335,6 +1392,8 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     setHandCoin, setHandMode, setHandDrag, throwFromHand,
     flipHandCoin() { handFlip ^= 1; },
     setPeople, personThrow,
+    /** 방금 드래그했으면 true (탭과 구분) */
+    justDragged() { return performance.now() - orbit.lastDrag < 250; },
     onFrame: (f) => listeners.push(f),
     get flying() { return flights.length; },
     get coinCount() { return field.count; },

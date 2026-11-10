@@ -1,11 +1,11 @@
 // 던지는 폰: 닉네임 → 동전 꾸미기 → 소원 → 3번 던지기 → 결과 → (성공 시) 익명 게시판
-import { createWorld } from './world.js?v=2';
-import { connect, mode, newId } from './net.js?v=2';
-import { windAt, simulate, scoreOf, isSuccess } from './physics.js?v=1';
-import { METALS, RIMS, STAMPS, DEFAULT_DESIGN, sanitizeDesign } from './coin-art.js?v=1';
-import { ZONES, SHOTS, shotMessage, finalResult, timeAgo, esc } from './game.js?v=1';
-import { cleanWish, cleanNick } from './filter.js?v=1';
-import * as sfx from './sound.js?v=1';
+import { createWorld } from './world.js?v=3';
+import { connect, mode, newId } from './net.js?v=3';
+import { windAt, simulate, scoreOf, isSuccess } from './physics.js?v=3';
+import { METALS, RIMS, STAMPS, DEFAULT_DESIGN, sanitizeDesign } from './coin-art.js?v=3';
+import { ZONES, SHOTS, shotMessage, finalResult, timeAgo, esc } from './game.js?v=3';
+import { cleanWish, cleanNick } from './filter.js?v=3';
+import * as sfx from './sound.js?v=3';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -61,7 +61,7 @@ function radio(container, items, current, onPick, render) {
 let presTimer;
 function sharePresence() {
   clearTimeout(presTimer);
-  presTimer = setTimeout(() => api && api.setPresence && api.setPresence({ nick, design }), 400);
+  presTimer = setTimeout(() => api && api.setPresence && api.setPresence({ nick, design }), 1200); // 연타해도 DB 쓰기는 한 번
 }
 function updateDesign(patch) {
   design = sanitizeDesign({ ...design, ...patch });
@@ -279,6 +279,7 @@ function onCoin(id, coin, initial) {
 /* ---------------- 성취 게시판 ---------------- */
 let wishes = [];
 const lastCheers = store.get('cheerCounts', {});
+const myCheers = new Set(store.get('myCheers', []));
 function renderWishes() {
   const ol = $('wish-list');
   if (!wishes.length) { ol.innerHTML = '<li class="empty">아직 성취한 소원이 없어요. 첫 번째 주인공이 되어 보세요!</li>'; return; }
@@ -287,7 +288,7 @@ function renderWishes() {
     return `<li data-id="${w.id}" class="${me ? 'mine' : ''}">
       <span class="w-emoji">${ZONES[w.zone]?.emoji || '✨'}</span>
       <div class="w-body"><p>${esc(w.text)}</p><span class="w-meta">${me ? '<b>내 소원</b> · ' : ''}${timeAgo(w.at)}</span></div>
-      <button class="cheer" type="button" data-act="cheer" ${w.cheered || me ? 'disabled' : ''} aria-label="응원하기">👏 <span>${w.cheers}</span></button>
+      <button class="cheer" type="button" data-act="cheer" ${myCheers.has(w.id) || me ? 'disabled' : ''} aria-label="응원하기">👏 <span>${w.cheers}</span></button>
       ${me ? '' : '<button class="report" type="button" data-act="report" aria-label="신고">🚩</button>'}
     </li>`;
   }).join('');
@@ -298,9 +299,12 @@ $('wish-list').addEventListener('click', async (e) => {
   if (btn.dataset.act === 'cheer') {
     btn.disabled = true; btn.classList.add('pop'); sfx.cheerPop(); vibrate(10);
     const n = btn.querySelector('span'); n.textContent = +n.textContent + 1;
-    try { await api.cheer(id); } catch (err) { console.warn(err); }
+    myCheers.add(id); store.set('myCheers', [...myCheers].slice(-200));
+    const w = wishes.find((x) => x.id === id);
+    try { await api.cheer(id, w ? w.cheers : 0); } catch (err) { console.warn(err); }
   } else if (btn.dataset.act === 'report' && confirm('이 소원을 신고할까요? 신고가 쌓이면 숨겨져요.')) {
-    try { await api.report(id); showToast('신고했어요. 고마워요.', 1800); } catch (err) { console.warn(err); }
+    const w = wishes.find((x) => x.id === id);
+    try { await api.report(id, w ? w.reports : 0); showToast('신고했어요. 고마워요.', 1800); } catch (err) { console.warn(err); }
   }
 });
 function openBoard() { $('sheet-board').hidden = false; renderWishes(); sfx.tick(); }
@@ -333,15 +337,24 @@ $('sound-btn').onclick = () => {
   syncSoundBtn();
 };
 syncSoundBtn();
-document.addEventListener('visibilitychange', () => { if (document.hidden) sfx.stopAmbient(); else if (store.get('sound', true) && sfx.audioReady()) sfx.startAmbient(0.55); });
+let sleepTimer;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    sfx.stopAmbient();
+    sleepTimer = setTimeout(() => api && api.sleep(), 30000); // 30초 넘게 다른 앱에 있으면 연결 끊기
+  } else {
+    clearTimeout(sleepTimer); api && api.wake();
+    if (store.get('sound', true) && sfx.audioReady()) sfx.startAmbient(0.55);
+  }
+});
 
 /* ---------------- 연결 ---------------- */
 (async () => {
   try {
     api = await connect('thrower');
     sharePresence();
-    api.watchCoins(150, onCoin);
-    api.watchWishes(40, onWishes);
+    api.watchCoins(60, onCoin); // 폰은 최근 동전만 (데이터 절약)
+    api.watchWishes(30, onWishes);
   } catch (e) {
     console.error(e);
     $('net-note').textContent = '연못 연결에 실패했어요. 혼자 연습은 할 수 있어요.';

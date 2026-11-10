@@ -1,10 +1,10 @@
 // 연못 화면: 모든 사람의 동전이 실시간으로 날아와 쌓이고, 성취한 소원이 흘러가요.
-import { createWorld } from './world.js?v=2';
-import { connect, mode } from './net.js?v=2';
-import { windAt } from './physics.js?v=1';
-import { faceDataURL } from './coin-art.js?v=1';
-import { ZONES, timeAgo, esc } from './game.js?v=1';
-import * as sfx from './sound.js?v=1';
+import { createWorld } from './world.js?v=3';
+import { connect, mode } from './net.js?v=3';
+import { windAt } from './physics.js?v=3';
+import { faceDataURL } from './coin-art.js?v=3';
+import { ZONES, timeAgo, esc } from './game.js?v=3';
+import * as sfx from './sound.js?v=3';
 
 const $ = (id) => document.getElementById(id);
 const world = createWorld($('scene'), { mode: 'pond' });
@@ -19,6 +19,16 @@ if (mode === 'local') coinUrl.searchParams.set('local', '');
   $('qr-link').href = coinUrl.href;
   $('qr-link').textContent = coinUrl.host + coinUrl.pathname.replace(/\/$/, '');
 })();
+// QR 접기/펼치기 (상태는 이 기기에 기억)
+function setQr(open) {
+  $('qr-card').hidden = !open; $('qr-open').hidden = open;
+  try { localStorage.setItem('wishpond:qr', open ? '1' : '0'); } catch {}
+}
+$('qr-fold').onclick = () => setQr(false);
+$('qr-open').onclick = () => setQr(true);
+try { if (localStorage.getItem('wishpond:qr') === '0') setQr(false); } catch {}
+setTimeout(() => $('orbit-hint').classList.add('gone'), 9000);
+
 if (mode === 'local') {
   $('mode-note').hidden = false;
   $('mode-note').textContent = '로컬 테스트 모드: 같은 브라우저의 다른 탭에서 coin.html을 열어 던져 보세요.';
@@ -88,6 +98,7 @@ function onCoin(id, coin, initial) {
 // 동전 탭 → 확대
 const canvas = $('scene');
 canvas.addEventListener('click', (e) => {
+  if (world.justDragged()) return;
   const rec = world.pick(e.clientX, e.clientY);
   const peek = $('peek');
   if (!rec) { peek.hidden = true; return; }
@@ -116,10 +127,10 @@ function renderBoard(list) {
 (async () => {
   try {
     const api = await connect('pond');
-    await api.watchCoins(380, onCoin);
+    await api.watchCoins(300, onCoin); // 최근 300개만 받아 와서 바닥에 쌓음
     api.watchTotal((n) => ($('total').textContent = `🪙 ${n.toLocaleString('ko-KR')}개`));
     api.watchPresence((list) => { $('online').textContent = `지금 ${list.length}명`; world.setPeople(list); });
-    api.watchWishes(30, renderBoard);
+    api.watchWishes(20, renderBoard);
   } catch (e) {
     console.error(e);
     $('mode-note').hidden = false;

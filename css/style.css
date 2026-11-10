@@ -38,13 +38,13 @@ button{font:inherit;color:inherit}
 .board-meta{font-size:12px;color:var(--pond-muted)}
 .board-empty{display:block !important;color:var(--pond-muted);font-size:14px;line-height:1.5;background:none !important}
 
-.qr-card{position:fixed;right:clamp(12px,2vw,28px);bottom:clamp(12px,2vw,28px);z-index:4;display:flex;gap:14px;align-items:center;padding:14px;border-radius:var(--radius-lg);
+.qr-card{position:fixed;right:clamp(12px,2vw,28px);bottom:clamp(12px,2vw,28px);z-index:4;display:flex;gap:10px;align-items:center;padding:10px 34px 10px 10px;border-radius:var(--radius-lg);
   background:var(--pond-glass-strong);border:1px solid var(--pond-line);box-shadow:0 20px 50px rgba(40,90,140,.25)}
-.qr{width:clamp(110px,10vw,170px);aspect-ratio:1;background:#fff;border-radius:12px;padding:6px}
+.qr{width:clamp(78px,6.5vw,112px);aspect-ratio:1;background:#fff;border-radius:10px;padding:4px}
 .qr svg{display:block;width:100%;height:100%}
-.qr-card strong{display:block;font:400 clamp(18px,1.5vw,26px)/1.15 var(--display);color:var(--pond-ink)}
-.qr-card span{display:block;margin-top:6px;font-size:13px;color:var(--pond-muted);font-weight:600}
-.qr-link{display:block;margin-top:8px;font-size:12px;color:var(--pond-gold);text-decoration:none;word-break:break-all;max-width:180px}
+.qr-card strong{display:block;font:400 clamp(15px,1.15vw,20px)/1.15 var(--display);color:var(--pond-ink)}
+.qr-card span{display:block;margin-top:4px;font-size:12px;color:var(--pond-muted);font-weight:600}
+.qr-link{display:block;margin-top:4px;font-size:11px;color:var(--pond-gold);text-decoration:none;word-break:break-all;max-width:150px}
 
 .pond-tools{position:fixed;left:clamp(12px,2vw,28px);bottom:clamp(12px,2vw,28px);z-index:4;display:flex;gap:8px;flex-wrap:wrap}
 .feed{position:fixed;right:clamp(12px,2vw,28px);top:72px;z-index:4;display:grid;gap:6px;justify-items:end;pointer-events:none}
@@ -174,3 +174,14 @@ button{font:inherit;color:inherit}
 .random-btn{background:linear-gradient(135deg,#fff5d6,#ffe1ee 55%,#dff7fa);border-color:rgba(200,138,18,.35);font-weight:800;white-space:nowrap}
 .random-btn.spin{animation:diceSpin .45s cubic-bezier(.2,1.4,.3,1)}
 @keyframes diceSpin{40%{transform:rotate(-8deg) scale(1.12)}}
+
+/* QR 접기 + 둘러보기 안내 */
+.qr-card[hidden],.qr-open[hidden]{display:none !important}
+.qr-fold{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;border:1px solid var(--pond-line);background:#fff;color:var(--pond-ink);font-weight:800;font-size:14px;line-height:1;cursor:pointer}
+.qr-fold:hover{background:#f1f7fb}
+.qr-open{position:fixed;right:clamp(12px,2vw,28px);bottom:clamp(12px,2vw,28px);z-index:4}
+.orbit-hint{position:fixed;left:50%;bottom:52px;transform:translateX(-50%);z-index:4;margin:0;padding:7px 14px;border-radius:999px;background:var(--pond-glass-strong);font-size:13px;font-weight:700;color:var(--pond-ink);pointer-events:none;transition:opacity .8s}
+.orbit-hint.gone{opacity:0}
+.pond-page #scene{cursor:grab}
+.pond-page #scene:active{cursor:grabbing}
+@media (max-width:600px){.qr-card{left:auto;right:12px;bottom:60px}}

@@ -25,10 +25,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dopasharp/tokens.css">
   <link rel="stylesheet" href="dopasharp/components.css">
-  <link rel="stylesheet" href="css/style.css?v=2">
+  <link rel="stylesheet" href="css/style.css?v=3">
   <script src="dopasharp/dopasharp.js" defer></script>
   <script src="vendor/qrcode.js"></script>
-  <script type="module" src="js/pond.js?v=2"></script>
+  <script type="module" src="js/pond.js?v=3"></script>
 </head>
 <body class="pond-page">
   <canvas id="scene" aria-label="소원의 연못 3D 화면"></canvas>
@@ -45,15 +45,18 @@
     <ol id="board-list" class="board-list"><li class="board-empty">거북 등이나 항아리에 동전을 올리면<br>소원이 여기에 익명으로 떠요.</li></ol>
   </aside>
 
-  <section class="qr-card" aria-label="동전 던지러 가기">
+  <section class="qr-card" id="qr-card" aria-label="동전 던지러 가기">
     <div id="qr" class="qr"></div>
-    <div>
-      <strong>폰으로 QR 찍고<br>동전 던지기</strong>
+    <div class="qr-text">
+      <strong>QR 찍고<br>동전 던지기</strong>
       <span>한 번에 3개 · 여러 명 동시에</span>
       <a id="qr-link" class="qr-link" href="coin.html" target="_blank" rel="noopener">coin.html</a>
     </div>
+    <button id="qr-fold" class="qr-fold" type="button" aria-label="QR 접기" aria-expanded="true">－</button>
   </section>
+  <button id="qr-open" class="chip qr-open" type="button" hidden>📱 QR 펼치기</button>
 
+  <p class="orbit-hint" id="orbit-hint">👆 드래그로 둘러보기 · 휠/핀치로 확대</p>
   <div class="pond-tools">
     <button id="sound-btn" class="chip" type="button">🔇 소리 켜기</button>
     <button id="fs-btn" class="chip" type="button">⛶ 전체 화면</button>
