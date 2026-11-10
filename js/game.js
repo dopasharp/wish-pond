@@ -25,7 +25,7 @@ function aimHint(r) {
 }
 
 export function finalResult(best) {
-  if (best.zone === 'turtle') return { art: '🐢', title: '대길! 거북이가 소원을 업었어요', detail: '돌거북 등에 동전이 올라갔어요. 이 소원은 이뤄질 수밖에 없어요.' };
+  if (best.zone === 'turtle') return { art: '🐢', title: '대길! 거북이가 소원을 업었어요', detail: '거북 석상 등에 동전이 올라갔어요. 이 소원은 이뤄질 수밖에 없어요.' };
   if (best.zone === 'pot') return { art: '🏺', title: '길! 항아리에 소원이 담겼어요', detail: '항아리 속에 동전이 쏙. 차곡차곡 쌓이는 중이에요.' };
   if (best.score >= 60) return { art: '💧', title: '소길! 연못이 소원을 들었어요', detail: '거북이 가까이에 가라앉았어요. 조금만 더!' };
   if (best.zone === 'water') return { art: '🌊', title: '퐁당! 소원이 가라앉는 중', detail: '연못 바닥에서 소원이 천천히 익어가요.' };

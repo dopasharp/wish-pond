@@ -4,9 +4,10 @@
 export const POND = {
   R: 4.0,            // 수면 반지름
   RIM_OUT: 4.85,     // 돌 테두리 바깥
-  RIM_TOP: 0.17,     // 돌 윗면 높이
+  RIM_TOP: 0.34,     // 대리석 테두리 윗면 높이
   DEPTH: 0.62,       // 가운데 수심
-  GROUND: 0.03,      // 연못 밖 땅 높이
+  GROUND: 0.03,      // 연못 밖 광장 바닥 높이
+  WALL_Z: -6.62,     // 뒤쪽 궁전 벽(기둥 앞면)
   COIN_R: 0.11,      // 잘 보이도록 실제보다 크게
   COIN_H: 0.016,
   hand: { x: 0, y: 1.35, z: 5.25 },
@@ -32,6 +33,16 @@ export function potRadius(u) {
   return POT_PROFILE[POT_PROFILE.length - 1][1];
 }
 export const POT_MOUTH = 0.32; // 동전이 쏙 들어가는 입구 안쪽 반지름
+
+// 연못 밖 바닥 높이 (뒤쪽 폭포 계단 포함)
+export function groundY(x, z) {
+  if (Math.abs(x) < 1.65) {
+    if (z < -6.4) return 1.3;
+    if (z < -5.6) return 0.85;
+    if (z < -4.86) return 0.5;
+  }
+  return POND.GROUND;
+}
 
 export function floorY(x, z) {
   const r = Math.hypot(x, z) / POND.R;
@@ -187,10 +198,15 @@ export function simulate(launch) {
         state = 'sink';
         const sp = len3(v);
         v.x *= 0.1; v.z *= 0.1; v.y = -Math.min(1.2, 0.25 + sp * 0.08);
-      } else if (r >= POND.RIM_OUT && p.y <= POND.GROUND) {
-        p.y = POND.GROUND;
+      } else if (canHit && p.z < POND.WALL_Z && v.z < 0 && p.y < 8) {
+        // 궁전 벽에 "깡"
+        ev('stone', { speed: len3(v) });
+        bounce(v, { x: 0, y: 0, z: 1 }, 0.35, rng); bounces++; lastHit = t;
+        p.z = POND.WALL_Z;
+      } else if (r >= POND.RIM_OUT && p.y <= groundY(p.x, p.z)) {
+        p.y = groundY(p.x, p.z);
         ev('ground', { speed: len3(v) });
-        settle('out', { x: 0, y: 1, z: 0 }, POND.GROUND);
+        settle('out', { x: 0, y: 1, z: 0 }, p.y);
       } else if (p.y < -2) {
         settle('out', { x: 0, y: 1, z: 0 }, POND.GROUND);
       }

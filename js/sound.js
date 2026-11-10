@@ -267,41 +267,40 @@ export function cheerPop() {
   [880, 1320].forEach((f, i) => osc('triangle', f, t + i * 0.06, 0.15).connect(env(t + i * 0.06, 0.12, 0.003, 0.12)).connect(out1(0.3)));
 }
 
-/** 주변음: 잔잔한 물소리 + 풀벌레 + 가끔 풍경 */
+/** 주변음: 분수 물소리 + 폭포 + 새소리 + 가끔 풍경 */
 export function startAmbient(level = 1) {
   if (!ctx || ambient) return;
   const g = ctx.createGain(); g.gain.value = 0;
   g.gain.linearRampToValueAtTime(0.5 * level, ctx.currentTime + 2);
   g.connect(master);
-  // 물 찰랑임: 브라운 노이즈 + 저역 + 느린 진폭 변화
+  // 폭포·분수: 넓은 대역 노이즈 두 겹 (낮은 웅웅 + 높은 쏴아)
   const len = ctx.sampleRate * 4;
-  const b = ctx.createBuffer(1, len, ctx.sampleRate);
-  const d = b.getChannelData(0); let last = 0;
-  for (let i = 0; i < len; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; }
+  const b = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); let last = 0; for (let i = 0; i < len; i++) { const w = Math.random() * 2 - 1; last = (last + 0.06 * w) / 1.06; d[i] = last * 2.2 + w * 0.12; } }
   const src = ctx.createBufferSource(); src.buffer = b; src.loop = true;
-  const lp = filt('lowpass', 520);
-  const wg = ctx.createGain(); wg.gain.value = 0.35;
-  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.13; const lg = ctx.createGain(); lg.gain.value = 0.18;
+  const lp = filt('lowpass', 1600); const hp = filt('highpass', 120);
+  const wg = ctx.createGain(); wg.gain.value = 0.4;
+  const lfo = ctx.createOscillator(); lfo.frequency.value = 0.09; const lg = ctx.createGain(); lg.gain.value = 0.08;
   lfo.connect(lg).connect(wg.gain); lfo.start();
-  src.connect(lp).connect(wg).connect(g); src.start();
-  // 졸졸 (작은 물방울들)
-  const trickle = setInterval(() => { if (ok() && Math.random() < 0.55) drip(ctx.currentTime, 0.015 + Math.random() * 0.02, Math.random() * 2 - 1); }, 260);
-  // 풀벌레: 높은 음이 빠르게 떨림
-  const cricket = setInterval(() => {
-    if (!ok()) return;
-    const t = ctx.currentTime, f = 4300 + Math.random() * 500, pan = Math.random() * 2 - 1;
-    const pulses = 3 + Math.floor(Math.random() * 4);
-    for (let i = 0; i < pulses; i++) {
-      const s = t + i * 0.05;
-      const o = osc('sine', f, s, 0.035);
-      const pg = ctx.createGain(); pg.gain.value = 0.35 * level;
-      const p = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
-      const e = env(s, 0.03, 0.004, 0.03);
-      if (p) { p.pan.value = pan; o.connect(e).connect(p).connect(pg).connect(master); } else o.connect(e).connect(pg).connect(master);
+  src.connect(hp).connect(lp).connect(wg).connect(g); src.start();
+  const sp = filt('bandpass', 3800, 0.7); const sg = ctx.createGain(); sg.gain.value = 0.06;
+  src.connect(sp).connect(sg).connect(g);
+  // 물줄기 떨어지는 졸졸
+  const trickle = setInterval(() => { if (ok() && Math.random() < 0.8) drip(ctx.currentTime, 0.012 + Math.random() * 0.02, Math.random() * 2 - 1); }, 140);
+  // 새소리: 짧게 올라가는 지저귐
+  const birds = setInterval(() => {
+    if (!ok() || Math.random() < 0.45) return;
+    const t0 = ctx.currentTime, pan = Math.random() * 2 - 1, base = 2600 + Math.random() * 1600, n = 2 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < n; i++) {
+      const t = t0 + i * (0.09 + Math.random() * 0.05);
+      const o = osc('sine', base, t, 0.08);
+      o.frequency.exponentialRampToValueAtTime(base * (1.25 + Math.random() * 0.3), t + 0.06);
+      const e = env(t, 0.035 * level, 0.005, 0.07);
+      if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan; o.connect(e).connect(p).connect(master); } else o.connect(e).connect(master);
     }
-  }, 900);
-  const wind = setInterval(() => { if (Math.random() < 0.25) chimes(0, 2 + Math.floor(Math.random() * 3)); }, 9000);
-  ambient = { g, src, lfo, timers: [trickle, cricket, wind] };
+  }, 1700);
+  const wind = setInterval(() => { if (Math.random() < 0.3) chimes(0, 2 + Math.floor(Math.random() * 3)); }, 8000);
+  ambient = { g, src, lfo, timers: [trickle, birds, wind] };
 }
 export function stopAmbient() {
   if (!ambient) return;
