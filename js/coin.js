@@ -1,6 +1,6 @@
 // 던지는 폰: 닉네임 → 동전 꾸미기 → 소원 → 3번 던지기 → 결과 → (성공 시) 익명 게시판
 import { createWorld } from './world.js?v=3';
-import { connect, mode, newId } from './net.js?v=3';
+import { connect, mode, newId, explainError } from './net.js?v=4';
 import { windAt, simulate, scoreOf, isSuccess } from './physics.js?v=3';
 import { METALS, RIMS, STAMPS, DEFAULT_DESIGN, sanitizeDesign } from './coin-art.js?v=3';
 import { ZONES, SHOTS, shotMessage, finalResult, timeAgo, esc } from './game.js?v=3';
@@ -227,7 +227,7 @@ function throwCoin({ power, aimX, spin }) {
     onDone() { afterShot(sim, shot); },
   });
   // 연못에 기록 (네트워크가 느려도 게임은 계속)
-  if (api) api.throwCoin(id, coin).catch((e) => { console.warn(e); showToast('연못 연결이 불안정해요. 동전은 이 폰에만 보여요.', 2600, 'warn'); });
+  if (api) api.throwCoin(id, coin).catch((e) => { console.warn(e); showToast('연못에 기록 못 했어요: ' + explainError(e), 4000, 'warn'); });
 }
 
 function afterShot(sim, shot) {
@@ -355,9 +355,10 @@ document.addEventListener('visibilitychange', () => {
     sharePresence();
     api.watchCoins(60, onCoin); // 폰은 최근 동전만 (데이터 절약)
     api.watchWishes(30, onWishes);
+    if (api.authError) $('net-note').textContent = '⚠️ ' + explainError(api.authError) + ' (혼자 연습은 할 수 있어요)';
   } catch (e) {
     console.error(e);
-    $('net-note').textContent = '연못 연결에 실패했어요. 혼자 연습은 할 수 있어요.';
+    $('net-note').textContent = '⚠️ 연못 연결 실패: ' + explainError(e) + ' (혼자 연습은 할 수 있어요)';
   }
 })();
 

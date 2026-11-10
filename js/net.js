@@ -21,6 +21,18 @@ export async function connect(role) {
   return mode === 'local' ? localApi(role) : firebaseApi(role);
 }
 
+/** 연결 오류를 사람이 고칠 수 있는 문장으로 */
+export function explainError(e) {
+  const code = String((e && (e.code || e.message)) || e || '');
+  if (/operation-not-allowed|admin-restricted/i.test(code)) return '익명 로그인이 꺼져 있어요 → Firebase 콘솔 Authentication › 로그인 방법 › 익명 사용 설정';
+  if (/configuration-not-found/i.test(code)) return 'Authentication이 시작되지 않았어요 → Firebase 콘솔 Authentication › 시작하기 후 익명 사용 설정';
+  if (/api-key|invalid-api-key|API_KEY/i.test(code)) return 'API 키가 맞지 않거나 제한돼 있어요 → 프로젝트 설정의 웹 앱 apiKey 확인';
+  if (/unauthorized-domain|requests-from-referer|referer/i.test(code)) return '이 사이트 주소가 허용되지 않았어요 → Authentication › 설정 › 승인된 도메인에 dopasharp.github.io 추가 (API 키 웹사이트 제한도 확인)';
+  if (/permission[_ -]denied/i.test(code)) return 'DB 규칙이 막고 있어요 → Realtime Database › 규칙을 저장소의 database.rules.json으로 다시 게시';
+  if (/network-request-failed|Failed to fetch|dynamically imported/i.test(code)) return 'Firebase에 접속하지 못했어요 → 인터넷·광고 차단기 확인 후 새로고침';
+  return '연결 오류: ' + code.slice(0, 120);
+}
+
 async function firebaseApi(role) {
   const [{ initializeApp }, d, a] = await Promise.all([
     import(`${SDK}/firebase-app.js`),
@@ -29,16 +41,17 @@ async function firebaseApi(role) {
   ]);
   const app = initializeApp(firebaseConfig);
   const auth = a.getAuth(app);
-  const cred = await a.signInAnonymously(auth);
-  const uid = cred.user.uid;
+  // 로그인에 실패해도 보기(읽기)는 되게 계속 진행하고, 이유는 authError로 알려줌
+  let uid = null, authError = null;
+  try { uid = (await a.signInAnonymously(auth)).user.uid; } catch (e) { authError = e; console.error('[wish-pond] 익명 로그인 실패', e); }
   const db = d.getDatabase(app);
   const ref = (p = '') => d.ref(db, `${ROOT}${p ? '/' + p : ''}`);
 
   // 접속 표시 (끊기면 자동 삭제). 던지는 폰은 닉네임·동전 디자인도 같이 올려서 연못 화면에 캐릭터로 보여요.
   let info = {};
-  const me = ref(`presence/${uid}`);
+  const me = ref(`presence/${uid || 'anon'}`);
   d.onValue(d.ref(db, '.info/connected'), (s) => {
-    if (s.val() !== true) return;
+    if (s.val() !== true || !uid) return;
     d.onDisconnect(me).remove();
     d.set(me, { ...info, role, at: d.serverTimestamp() });
   });
@@ -61,7 +74,7 @@ async function firebaseApi(role) {
   }
 
   return {
-    mode, uid,
+    mode, uid, authError,
     async watchCoins(limit, onCoin) {
       const q = d.query(ref('coins'), d.orderByKey(), d.limitToLast(limit));
       const snap = await d.get(q);
@@ -95,7 +108,7 @@ async function firebaseApi(role) {
     report(id, current) { return bump('wishReports', 'r', id, current); },
     setPresence(next) {
       info = { nick: String(next.nick || '').slice(0, 10), design: next.design || null };
-      d.update(me, info).catch(() => {});
+      if (uid) d.update(me, info).catch((e) => console.warn('[wish-pond] presence', e));
     },
     // cb([{ uid, nick, design }]) — 지금 접속한 던지는 사람들
     // 화면을 꺼 두면 연결을 끊어 동시 접속 수·데이터를 아낌 (돌아오면 다시 연결)

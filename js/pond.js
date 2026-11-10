@@ -1,6 +1,6 @@
 // 연못 화면: 모든 사람의 동전이 실시간으로 날아와 쌓이고, 성취한 소원이 흘러가요.
 import { createWorld } from './world.js?v=3';
-import { connect, mode } from './net.js?v=3';
+import { connect, mode, explainError } from './net.js?v=4';
 import { windAt } from './physics.js?v=3';
 import { faceDataURL } from './coin-art.js?v=3';
 import { ZONES, timeAgo, esc } from './game.js?v=3';
@@ -124,18 +124,17 @@ function renderBoard(list) {
   knownWishes = new Set(list.map((w) => w.id));
 }
 
+function showNote(text) { $('mode-note').hidden = false; $('mode-note').textContent = text; }
 (async () => {
-  try {
-    const api = await connect('pond');
-    await api.watchCoins(300, onCoin); // 최근 300개만 받아 와서 바닥에 쌓음
-    api.watchTotal((n) => ($('total').textContent = `🪙 ${n.toLocaleString('ko-KR')}개`));
-    api.watchPresence((list) => { $('online').textContent = `지금 ${list.length}명`; world.setPeople(list); });
-    api.watchWishes(20, renderBoard);
-  } catch (e) {
-    console.error(e);
-    $('mode-note').hidden = false;
-    $('mode-note').textContent = '연못 연결에 실패했어요. 잠시 후 새로고침해 주세요.';
-  }
+  let api;
+  try { api = await connect('pond'); } catch (e) { console.error(e); showNote('연못 연결 실패: ' + explainError(e)); return; }
+  if (api.authError) showNote('보기만 가능: ' + explainError(api.authError));
+  // 각각 따로 연결 (하나가 실패해도 나머지는 동작)
+  const step = (name, fn) => Promise.resolve().then(fn).catch((e) => { console.error('[wish-pond]', name, e); showNote(`${name} 연결 실패: ${explainError(e)}`); });
+  await step('동전', () => api.watchCoins(300, onCoin)); // 최근 300개만 받아 와서 바닥에 쌓음
+  step('동전 수', () => api.watchTotal((n) => ($('total').textContent = `🪙 ${n.toLocaleString('ko-KR')}개`)));
+  step('접속자', () => api.watchPresence((list) => { $('online').textContent = `지금 ${list.length}명`; world.setPeople(list); }));
+  step('게시판', () => api.watchWishes(20, renderBoard));
 })();
 
 window.testThrow = (power = Math.random(), aimX = Math.random() * 2 - 1) => {
