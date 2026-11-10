@@ -1,5 +1,5 @@
 // 던지는 폰: 닉네임 → 동전 꾸미기 → 소원 → 3번 던지기 → 결과 → (성공 시) 익명 게시판
-import { createWorld } from './world.js?v=1';
+import { createWorld } from './world.js?v=2';
 import { connect, mode, newId } from './net.js?v=2';
 import { windAt, simulate, scoreOf, isSuccess } from './physics.js?v=1';
 import { METALS, RIMS, STAMPS, DEFAULT_DESIGN, sanitizeDesign } from './coin-art.js?v=1';
@@ -41,6 +41,7 @@ $('start-btn').onclick = () => {
   sfx.unlockAudio(); sfx.setSoundEnabled(store.get('sound', true)); if (store.get('sound', true)) sfx.startAmbient(0.55);
   syncSoundBtn();
   nick = cleanNick($('nick').value); store.set('nick', nick);
+  sharePresence();
   sfx.tick();
   go('design');
 };
@@ -57,9 +58,15 @@ function radio(container, items, current, onPick, render) {
     container.appendChild(b);
   });
 }
+let presTimer;
+function sharePresence() {
+  clearTimeout(presTimer);
+  presTimer = setTimeout(() => api && api.setPresence && api.setPresence({ nick, design }), 400);
+}
 function updateDesign(patch) {
   design = sanitizeDesign({ ...design, ...patch });
   store.set('design', design);
+  sharePresence();
   world.setHandCoin(design);
   world.setHandMode(document.body.dataset.step === 'throw' ? 'ready' : 'edit');
 }
@@ -332,6 +339,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) sfx.s
 (async () => {
   try {
     api = await connect('thrower');
+    sharePresence();
     api.watchCoins(150, onCoin);
     api.watchWishes(40, onWishes);
   } catch (e) {

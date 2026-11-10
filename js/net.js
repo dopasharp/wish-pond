@@ -34,12 +34,13 @@ async function firebaseApi(role) {
   const db = d.getDatabase(app);
   const ref = (p = '') => d.ref(db, `${ROOT}${p ? '/' + p : ''}`);
 
-  // 접속 표시 (끊기면 자동 삭제)
+  // 접속 표시 (끊기면 자동 삭제). 던지는 폰은 닉네임·동전 디자인도 같이 올려서 연못 화면에 캐릭터로 보여요.
+  let info = {};
+  const me = ref(`presence/${uid}`);
   d.onValue(d.ref(db, '.info/connected'), (s) => {
     if (s.val() !== true) return;
-    const me = ref(`presence/${uid}`);
     d.onDisconnect(me).remove();
-    d.set(me, { role, at: d.serverTimestamp() });
+    d.set(me, { ...info, role, at: d.serverTimestamp() });
   });
 
   return {
@@ -74,10 +75,16 @@ async function firebaseApi(role) {
     },
     cheer(id) { return d.set(ref(`wishes/${id}/cheers/${uid}`), true); },
     report(id) { return d.set(ref(`wishes/${id}/reports/${uid}`), true); },
+    setPresence(next) {
+      info = { nick: String(next.nick || '').slice(0, 10), design: next.design || null };
+      d.update(me, info).catch(() => {});
+    },
+    // cb([{ uid, nick, design }]) — 지금 접속한 던지는 사람들
     watchPresence(cb) {
       d.onValue(ref('presence'), (s) => {
-        let n = 0; s.forEach((c) => { if (c.val() && c.val().role === 'thrower') n++; });
-        cb(n);
+        const list = [];
+        s.forEach((c) => { const v = c.val(); if (v && v.role === 'thrower') list.push({ uid: c.key, nick: v.nick || '', design: v.design || null }); });
+        cb(list);
       });
     },
   };
@@ -104,18 +111,19 @@ function localApi(role) {
   const emitTotal = () => subs.total.forEach((f) => f(db().total));
   const emitPresence = () => {
     const now = Date.now();
-    let n = role === 'thrower' ? 1 : 0;
-    peers.forEach((p) => { if (now - p.at < 7000 && p.role === 'thrower') n++; });
-    subs.presence.forEach((f) => f(n));
+    const list = [];
+    peers.forEach((p, id) => { if (now - p.at < 20000 && p.role === 'thrower') list.push({ uid: id, nick: p.nick || '', design: p.design || null }); });
+    subs.presence.forEach((f) => f(list));
   };
   ch.onmessage = ({ data: m }) => {
     if (m.type === 'coin') subs.coin.forEach((f) => f(m.id, m.coin, false));
     else if (m.type === 'wishes') emitWishes();
     else if (m.type === 'total') emitTotal();
-    else if (m.type === 'hello') { peers.set(m.uid, { role: m.role, at: Date.now() }); emitPresence(); }
+    else if (m.type === 'hello') { peers.set(m.uid, { role: m.role, nick: m.nick, design: m.design, at: Date.now() }); emitPresence(); }
     else if (m.type === 'bye') { peers.delete(m.uid); emitPresence(); }
   };
-  const hello = () => ch.postMessage({ type: 'hello', uid, role });
+  let info = {};
+  const hello = () => ch.postMessage({ type: 'hello', uid, role, ...info });
   hello(); setInterval(() => { hello(); emitPresence(); }, 3000);
   addEventListener('pagehide', () => ch.postMessage({ type: 'bye', uid }));
 
@@ -160,6 +168,7 @@ function localApi(role) {
       const x = db(); const w = x.wishes[id]; if (!w) return;
       (w.reports ||= {})[uid] = true; save(x); ch.postMessage({ type: 'wishes' }); emitWishes();
     },
+    setPresence(next) { info = { nick: next.nick || '', design: next.design || null }; hello(); },
     watchPresence(cb) { subs.presence.push(cb); emitPresence(); },
   };
 }

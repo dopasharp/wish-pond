@@ -1,5 +1,5 @@
 // 연못 화면: 모든 사람의 동전이 실시간으로 날아와 쌓이고, 성취한 소원이 흘러가요.
-import { createWorld } from './world.js?v=1';
+import { createWorld } from './world.js?v=2';
 import { connect, mode } from './net.js?v=2';
 import { windAt } from './physics.js?v=1';
 import { faceDataURL } from './coin-art.js?v=1';
@@ -71,7 +71,9 @@ function onCoin(id, coin, initial) {
   seen.add(id);
   coin.id = id;
   if (initial) { world.placeCoin(coin); return; }
+  const hand = world.personThrow(coin.uid);
   world.playThrow(coin, {
+    fromHand: hand, blend: 0.45,
     onEvent(ev) {
       if (soundOn) sfx.eventSound(ev, { near: false });
       if (ev.type === 'turtle' || ev.type === 'potland') {
@@ -116,7 +118,7 @@ function renderBoard(list) {
     const api = await connect('pond');
     await api.watchCoins(380, onCoin);
     api.watchTotal((n) => ($('total').textContent = `🪙 ${n.toLocaleString('ko-KR')}개`));
-    api.watchPresence((n) => ($('online').textContent = `지금 ${n}명`));
+    api.watchPresence((list) => { $('online').textContent = `지금 ${list.length}명`; world.setPeople(list); });
     api.watchWishes(30, renderBoard);
   } catch (e) {
     console.error(e);

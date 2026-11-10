@@ -982,7 +982,7 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
       record, sim, mesh, t: 0, ei: 0, opts,
       impactT: impact ? impact.t : sim.duration,
       spinRate: (5 + (record.launch.spin || 0.5) * 9) * Math.PI * 2,
-      qImpact: null, qRest: restQuat(sim.rest), handFrom: opts.fromHand ? opts.fromHand.clone() : null,
+      qImpact: null, qRest: restQuat(sim.rest), handFrom: opts.fromHand ? opts.fromHand.clone() : null, blend: opts.blend || 0.12,
       headQ: new THREE.Quaternion(), done: false, bubbleT: 0,
     };
     flights.push(fl);
@@ -994,7 +994,7 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     const { sim, mesh } = fl;
     const t = fl.t;
     framePos(sim, t, _a);
-    if (fl.handFrom && t < 0.12) _a.lerp(fl.handFrom, 1 - t / 0.12);
+    if (fl.handFrom && t < fl.blend) { const k = t / fl.blend; _a.lerp(fl.handFrom, 1 - k * k * (3 - 2 * k)); }
     mesh.position.copy(_a);
     // 이벤트
     while (fl.ei < sim.events.length && sim.events[fl.ei].t <= t) {
@@ -1122,6 +1122,132 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     return best;
   }
 
+  /* --- 접속한 사람들 (연못 화면): 귀여운 캐릭터 + 머리 위에 각자 꾸민 동전 --- */
+  const people = new Map(); // uid → person
+  const SLOTS = [-0.35, 3.49, -0.75, 3.89, 0.15, 2.99, 0.55, 2.59, 0.95, 2.19, 1.3, 1.84].map((a) => a); // 연못 둘레 각도 (앞쪽·옆쪽)
+  const PERSON_R = POND.RIM_OUT + 0.7;
+  const SHIRTS = [0xff9ec4, 0x8fd3ff, 0xffd36b, 0x9de8c4, 0xc9b5ff, 0xffb38a, 0x7fe0e8, 0xff8fa3];
+  const HAIRS = [0x4a3426, 0x2a2230, 0x8a5a3a, 0xd9a35b, 0xff9ec4, 0x6d7cff, 0x2f2f2f];
+  const SKINS = [0xffe2cc, 0xf6d1b3, 0xe8b996, 0xffd9c2];
+  const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+  function nameTag(text) {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 72;
+    const x = c.getContext('2d');
+    x.font = '700 34px "Pretendard Variable",system-ui,sans-serif';
+    const w = Math.min(244, x.measureText(text).width + 36);
+    x.fillStyle = 'rgba(255,255,255,.92)';
+    x.beginPath(); x.roundRect((256 - w) / 2, 8, w, 54, 27); x.fill();
+    x.fillStyle = '#22304a'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, 128, 36);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthWrite: false, depthTest: false, transparent: true }));
+    s.scale.set(0.95, 0.27, 1);
+    return s;
+  }
+  function makePerson(p, slot) {
+    const h = hashStr(p.uid);
+    const g = new THREE.Group();
+    const skin = new THREE.MeshStandardMaterial({ color: SKINS[h % SKINS.length], roughness: 0.6 });
+    const shirt = new THREE.MeshStandardMaterial({ color: SHIRTS[(h >> 3) % SHIRTS.length], roughness: 0.55 });
+    const hairM = new THREE.MeshStandardMaterial({ color: HAIRS[(h >> 7) % HAIRS.length], roughness: 0.5 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x2c2a35, roughness: 0.4 });
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.28, 6, 16), shirt); body.position.y = 0.42; g.add(body);
+    [-0.09, 0.09].forEach((x) => { const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.16, 4, 10), dark); leg.position.set(x, 0.12, 0); g.add(leg); });
+    const headG = new THREE.Group(); headG.position.y = 0.86; g.add(headG);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 28, 20), skin); headG.add(head);
+    const hair = new THREE.Mesh(new THREE.SphereGeometry(0.255, 28, 14, 0, Math.PI * 2, 0, Math.PI * 0.55), hairM); hair.rotation.x = -0.25; headG.add(hair);
+    if (h % 3 === 0) { const bun = new THREE.Mesh(new THREE.SphereGeometry(0.09, 14, 10), hairM); bun.position.set(0, 0.24, -0.08); headG.add(bun); }
+    [-0.085, 0.085].forEach((x) => {
+      const e = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), eyeMat); e.position.set(x, 0.0, 0.215); headG.add(e);
+      const hl = new THREE.Mesh(new THREE.SphereGeometry(0.01, 6, 4), hiMat); hl.position.set(x + 0.01, 0.012, 0.24); headG.add(hl);
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 6), blushMat); b.scale.set(1, 0.5, 0.4); b.position.set(x * 1.6, -0.06, 0.2); headG.add(b);
+    });
+    const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.007, 6, 12, Math.PI), new THREE.MeshBasicMaterial({ color: 0x8a4a4a }));
+    mouth.rotation.z = Math.PI; mouth.position.set(0, -0.07, 0.228); headG.add(mouth);
+    const arms = [-1, 1].map((sx) => {
+      const pivot = new THREE.Group(); pivot.position.set(sx * 0.22, 0.6, 0);
+      const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.055, 0.2, 4, 10), shirt); arm.position.y = -0.14; pivot.add(arm);
+      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.06, 10, 8), skin); hand.position.y = -0.28; pivot.add(hand);
+      pivot.rotation.z = sx * 0.25; g.add(pivot); return pivot;
+    });
+    // 머리 위 동전 (각자 꾸민 디자인)
+    const coin = makeCoinMesh(p.design || { metal: 'gold', rim: 'dots', stamp: '🐢', text: '소원', back: '' }, 256);
+    coin.scale.setScalar(1.6); coin.position.y = 1.42; g.add(coin);
+    const halo = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.26, 32), new THREE.MeshBasicMaterial({ color: 0xffe6a0, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    halo.position.y = 1.42; g.add(halo);
+    const tag = nameTag(p.nick || '익명'); tag.position.y = 1.86; tag.renderOrder = 20; g.add(tag);
+    const a = SLOTS[slot % SLOTS.length];
+    const r = PERSON_R + Math.floor(slot / SLOTS.length) * 0.75;
+    g.position.set(Math.cos(a) * r, POND.GROUND, Math.sin(a) * r);
+    g.lookAt(0, POND.GROUND, 0);
+    g.scale.setScalar(0.001);
+    shadow(g, true, false);
+    tag.castShadow = false;
+    scene.add(g);
+    return { uid: p.uid, g, coin, halo, arms, headG, tag, slot, key: designKey(sanitizeDesign(p.design || {})) + '|' + (p.nick || ''), born: shared.uTime.value, leaving: -1, throwT: -1, phase: (h % 100) / 16 };
+  }
+  function disposePerson(ps) {
+    scene.remove(ps.g);
+    ps.coin.userData.dispose && ps.coin.userData.dispose();
+    ps.tag.material.map.dispose(); ps.tag.material.dispose();
+  }
+  function setPeople(list) {
+    const live = new Set(list.map((p) => p.uid));
+    people.forEach((ps, uid) => { if (!live.has(uid) && ps.leaving < 0) ps.leaving = shared.uTime.value; });
+    const used = new Set([...people.values()].filter((ps) => ps.leaving < 0).map((ps) => ps.slot));
+    list.slice(0, SLOTS.length * 2).forEach((p) => {
+      const key = designKey(sanitizeDesign(p.design || {})) + '|' + (p.nick || '');
+      const ex = people.get(p.uid);
+      if (ex && ex.key === key) { if (ex.leaving >= 0) { ex.leaving = -1; ex.born = -10; used.add(ex.slot); } return; } // 잠깐 끊겼다 돌아오면 퇴장 취소
+      let slot;
+      if (ex) { slot = ex.slot; disposePerson(ex); people.delete(p.uid); }
+      else { slot = 0; while (used.has(slot)) slot++; used.add(slot); }
+      const ps = makePerson(p, slot);
+      if (ex && ex.leaving < 0) ps.born = -10; // 디자인만 바뀐 경우 튀어나오지 않게
+      people.set(p.uid, ps);
+    });
+  }
+  const _hand = new THREE.Vector3();
+  /** 그 사람이 던지는 동작을 하고, 손 위치를 돌려줌 (없으면 null) */
+  function personThrow(uid) {
+    const ps = uid && people.get(uid);
+    if (!ps || ps.leaving >= 0) return null;
+    ps.throwT = 0;
+    ps.g.updateMatrixWorld(true);
+    return ps.coin.getWorldPosition(_hand).clone();
+  }
+  function updatePeople(dt, time) {
+    people.forEach((ps, uid) => {
+      const age = time - ps.born;
+      let s = Math.min(1, Math.max(0, age) / 0.45);
+      s = s < 1 ? 1 + Math.sin(s * Math.PI) * 0.25 - (1 - s) : 1;
+      if (ps.leaving >= 0) {
+        const k = (time - ps.leaving) / 0.5;
+        if (k >= 1) { disposePerson(ps); people.delete(uid); return; }
+        s = 1 - k;
+      }
+      ps.g.scale.setScalar(Math.max(0.001, s) * 1.45);
+      const bob = Math.sin(time * 2.2 + ps.phase);
+      ps.headG.rotation.z = bob * 0.06;
+      ps.g.children[0].position.y = 0.42 + Math.abs(bob) * 0.015;
+      ps.arms[0].rotation.x = Math.sin(time * 2.2 + ps.phase) * 0.12;
+      let armR = Math.sin(time * 2.2 + ps.phase + 1) * 0.12, coinVis = 1;
+      if (ps.throwT >= 0) {
+        ps.throwT += dt;
+        const k = ps.throwT / 0.7;
+        armR = k < 0.35 ? -2.6 * (k / 0.35) : -2.6 + 2.6 * Math.min(1, (k - 0.35) / 0.65);
+        coinVis = k < 0.15 ? 1 : k < 1 ? 0 : 1;
+        if (k >= 1.4) ps.throwT = -1;
+      }
+      ps.arms[1].rotation.x = armR;
+      ps.coin.visible = ps.halo.visible = coinVis > 0;
+      ps.coin.rotation.set(Math.PI / 2, 0, time * 1.6 + ps.phase, 'XZY');
+      ps.coin.position.y = 1.42 + Math.sin(time * 1.8 + ps.phase) * 0.04;
+      ps.halo.position.y = ps.coin.position.y;
+      ps.halo.lookAt(camera.position);
+      ps.halo.material.opacity = 0.35 + 0.2 * Math.sin(time * 3 + ps.phase);
+    });
+  }
+
   /* --- 루프 --- */
   let running = true, last = performance.now(), timeScale = 1;
   const listeners = [];
@@ -1161,6 +1287,7 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
       if (potGlowT > 2) potGlowT = -1;
     }
     animateScene(dt, time);
+    if (people.size) updatePeople(dt, time);
 
     // 카메라
     const lerp = 1 - Math.exp(-dt * 2.6);
@@ -1207,6 +1334,7 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     playThrow, placeCoin, addRipple, pick,
     setHandCoin, setHandMode, setHandDrag, throwFromHand,
     flipHandCoin() { handFlip ^= 1; },
+    setPeople, personThrow,
     onFrame: (f) => listeners.push(f),
     get flying() { return flights.length; },
     get coinCount() { return field.count; },
