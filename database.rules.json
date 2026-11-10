@@ -63,6 +63,9 @@
             "seed": {
               ".validate": "newData.isNumber()"
             },
+            "ang": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 6.3"
+            },
             "$other": {
               ".validate": false
             }
@@ -172,6 +175,9 @@
             "$other": {
               ".validate": false
             }
+          },
+          "spot": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 6.3"
           },
           "$other": {
             ".validate": false

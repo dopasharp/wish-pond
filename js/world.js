@@ -1,7 +1,7 @@
 // 3D 연못. 연못 화면(pond)과 던지는 폰(thrower)이 같은 장면을 씁니다.
 import * as THREE from '../vendor/three.module.min.js';
-import { POND, POT_PROFILE, potRadius, floorY, simulate, turtleHead } from './physics.js?v=3';
-import { drawFace, METALS, designKey, sanitizeDesign } from './coin-art.js?v=3';
+import { POND, POT_PROFILE, potRadius, floorY, simulate, turtleHead } from './physics.js?v=4';
+import { drawFace, METALS, designKey, sanitizeDesign } from './coin-art.js?v=4';
 
 const SUN = new THREE.Vector3(-0.38, 0.78, 0.5).normalize();
 const Y = new THREE.Vector3(0, 1, 0);
@@ -1035,6 +1035,9 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
       if (k >= 1) {
         fl.done = true;
         mesh.quaternion.copy(fl.qRest);
+        // 던진 폰이 저장한 착지 위치가 있으면 그걸 기준으로 (기기 간 버전 차이가 있어도 모두 같은 자리)
+        const L = fl.record.land;
+        if (L && Number.isFinite(L.x)) { mesh.position.set(L.x, L.y, L.z); restQuat(L, mesh.quaternion); }
         addToField(fl.record, mesh.position, mesh.quaternion);
         scene.remove(mesh);
         mesh.userData.dispose && mesh.userData.dispose();
@@ -1052,6 +1055,7 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
 
   /* --- 카메라 --- */
   const follow = { target: null, hold: 0 };
+  let throwAng = Math.PI / 2;
   const camHome = { pos: new THREE.Vector3(), look: new THREE.Vector3() };
   const camLook = new THREE.Vector3();
   function setHome() {
@@ -1061,7 +1065,9 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
       camHome.pos.set(0, 6.6 * k, 10.8 * k); camHome.look.set(0, 0.9, -2.3);
       camera.fov = asp < 1 ? 46 : 40;
     } else {
-      camHome.pos.set(0, 2.7, 7.0); camHome.look.set(0, 0.35, -2.2);
+      // 내 자리(throwAng)에서 연못 가운데 너머를 바라봄
+      const c = Math.cos(throwAng), sn = Math.sin(throwAng);
+      camHome.pos.set(c * 7.0, 2.7, sn * 7.0); camHome.look.set(-c * 2.2, 0.35, -sn * 2.2);
       camera.fov = asp < 0.75 ? 64 : 52;
     }
     camera.updateProjectionMatrix();
@@ -1205,8 +1211,8 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     const h = hashStr(p.uid);
     const g = new THREE.Group();
     const skin = new THREE.MeshStandardMaterial({ color: SKINS[h % SKINS.length], roughness: 0.6 });
-    const shirt = new THREE.MeshStandardMaterial({ color: SHIRTS[(h >> 3) % SHIRTS.length], roughness: 0.55 });
-    const hairM = new THREE.MeshStandardMaterial({ color: HAIRS[(h >> 7) % HAIRS.length], roughness: 0.5 });
+    const shirt = new THREE.MeshStandardMaterial({ color: SHIRTS[(h >>> 3) % SHIRTS.length], roughness: 0.55 });
+    const hairM = new THREE.MeshStandardMaterial({ color: HAIRS[(h >>> 7) % HAIRS.length], roughness: 0.5 });
     const dark = new THREE.MeshStandardMaterial({ color: 0x2c2a35, roughness: 0.4 });
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.2, 0.28, 6, 16), shirt); body.position.y = 0.42; g.add(body);
     [-0.09, 0.09].forEach((x) => { const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.065, 0.16, 4, 10), dark); leg.position.set(x, 0.12, 0); g.add(leg); });
@@ -1233,15 +1239,17 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     const halo = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.26, 32), new THREE.MeshBasicMaterial({ color: 0xffe6a0, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
     halo.position.y = 1.42; g.add(halo);
     const tag = nameTag(p.nick || '익명'); tag.position.y = 1.86; tag.renderOrder = 20; g.add(tag);
-    const a = SLOTS[slot % SLOTS.length];
-    const r = PERSON_R + Math.floor(slot / SLOTS.length) * 0.75;
+    // 폰이 고른 자리(spot)가 있으면 그 자리에, 없으면 빈 칸에
+    const hasSpot = Number.isFinite(+p.spot);
+    const a = hasSpot ? +p.spot : SLOTS[slot % SLOTS.length];
+    const r = hasSpot ? POND.hand.z + 0.15 : PERSON_R + Math.floor(slot / SLOTS.length) * 0.75;
     g.position.set(Math.cos(a) * r, POND.GROUND, Math.sin(a) * r);
     g.lookAt(0, POND.GROUND, 0);
     g.scale.setScalar(0.001);
     shadow(g, true, false);
     tag.castShadow = false;
     scene.add(g);
-    return { uid: p.uid, g, coin, halo, arms, headG, tag, slot, key: designKey(sanitizeDesign(p.design || {})) + '|' + (p.nick || ''), born: shared.uTime.value, leaving: -1, throwT: -1, phase: (h % 100) / 16 };
+    return { uid: p.uid, g, coin, halo, arms, headG, tag, slot, key: designKey(sanitizeDesign(p.design || {})) + '|' + (p.nick || '') + '|' + (p.spot ?? ''), born: shared.uTime.value, leaving: -1, throwT: -1, phase: (h % 100) / 16 };
   }
   function disposePerson(ps) {
     scene.remove(ps.g);
@@ -1253,7 +1261,7 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     people.forEach((ps, uid) => { if (!live.has(uid) && ps.leaving < 0) ps.leaving = shared.uTime.value; });
     const used = new Set([...people.values()].filter((ps) => ps.leaving < 0).map((ps) => ps.slot));
     list.slice(0, SLOTS.length * 2).forEach((p) => {
-      const key = designKey(sanitizeDesign(p.design || {})) + '|' + (p.nick || '');
+      const key = designKey(sanitizeDesign(p.design || {})) + '|' + (p.nick || '') + '|' + (p.spot ?? '');
       const ex = people.get(p.uid);
       if (ex && ex.key === key) { if (ex.leaving >= 0) { ex.leaving = -1; ex.born = -10; used.add(ex.slot); } return; } // 잠깐 끊겼다 돌아오면 퇴장 취소
       let slot;
@@ -1352,7 +1360,11 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     let wantPos = camHome.pos, wantLook = camHome.look;
     if (follow.target && !follow.target.done) {
       const m = follow.target.mesh.position;
-      const behind = _b.set(m.x * 0.6, Math.max(0.9, m.y + 1.05), Math.max(m.z + 2.3, -1));
+      // 내 자리 방향(f) 기준으로 동전 뒤쪽 위에서 따라감, 연못 가운데를 1m 넘어가지는 않게
+      const fx = -Math.cos(throwAng), fz = -Math.sin(throwAng);
+      const behind = _b.set(m.x - fx * 2.3, Math.max(0.9, m.y + 1.05), m.z - fz * 2.3);
+      const over = behind.x * fx + behind.z * fz - 1;
+      if (over > 0) { behind.x -= fx * over; behind.z -= fz * over; }
       wantPos = behind.lerp(camHome.pos, 0.25);
       wantLook = _dir.copy(m);
       follow.last = wantLook.clone(); follow.lastPos = wantPos.clone();
@@ -1391,6 +1403,8 @@ export function createWorld(canvas, { mode = 'pond', quality } = {}) {
     playThrow, placeCoin, addRipple, pick,
     setHandCoin, setHandMode, setHandDrag, throwFromHand,
     flipHandCoin() { handFlip ^= 1; },
+    /** 폰: 내가 서서 던지는 자리 (연못 둘레 각도) */
+    setThrowSpot(ang) { throwAng = ang; setHome(); },
     setPeople, personThrow,
     /** 방금 드래그했으면 true (탭과 구분) */
     justDragged() { return performance.now() - orbit.lastDrag < 250; },

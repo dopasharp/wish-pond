@@ -11,17 +11,24 @@ export function shotMessage(sim) {
   const z = sim.zone;
   if (z === 'turtle') return '🐢 거북 등에 올라갔어요! 대길!';
   if (z === 'pot') return '🏺 항아리에 쏙! 길!';
-  if (z === 'out') return sim.rest.z < -4 ? '🌿 너무 세게! 연못 밖으로 넘어갔어요' : '🪨 돌에 튕겨서 밖으로…';
+  if (z === 'out') {
+    const ang = sim.ang ?? Math.PI / 2;
+    const along = -(sim.rest.x * Math.cos(ang) + sim.rest.z * Math.sin(ang)); // 연못 가운데 너머로 얼마나 갔나
+    return along > 4 ? '🌿 너무 세게! 연못 밖으로 넘어갔어요' : '🪨 테두리에 튕겨서 밖으로…';
+  }
   const bounced = sim.events.some((e) => e.type === 'stone' || e.type === 'ceramic');
-  return bounced ? '깡! 튕겨서 퐁당' : '💧 퐁당! ' + aimHint(sim.rest);
+  return bounced ? '깡! 튕겨서 퐁당' : '💧 퐁당! ' + aimHint(sim.rest, sim.ang);
 }
 // 가까운 목표 기준으로 다음 던지기 힌트
-function aimHint(r) {
+function aimHint(r, ang = Math.PI / 2) {
   const targets = [{ x: -1.15, z: -0.85 }, { x: 1.45, z: -1.55 }];
   const t = targets.reduce((a, b) => (Math.hypot(r.x - a.x, r.z - a.z) < Math.hypot(r.x - b.x, r.z - b.z) ? a : b));
-  const dz = r.z - t.z, dx = r.x - t.x;
-  if (Math.abs(dz) > Math.abs(dx) * 0.8) return dz > 0 ? '조금 더 세게!' : '조금만 살살!';
-  return dx > 0 ? '조금 더 왼쪽으로!' : '조금 더 오른쪽으로!';
+  // 던지는 사람 기준 앞(f)·오른쪽(rt) 방향으로 바꿔서 판단
+  const f = { x: -Math.cos(ang), z: -Math.sin(ang) }, rt = { x: -f.z, z: f.x };
+  const dx = r.x - t.x, dz = r.z - t.z;
+  const along = dx * f.x + dz * f.z, side = dx * rt.x + dz * rt.z;
+  if (Math.abs(along) > Math.abs(side) * 0.8) return along > 0 ? '조금만 살살!' : '조금 더 세게!';
+  return side > 0 ? '조금 더 왼쪽으로!' : '조금 더 오른쪽으로!';
 }
 
 export function finalResult(best) {

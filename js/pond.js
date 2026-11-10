@@ -1,10 +1,10 @@
 // 연못 화면: 모든 사람의 동전이 실시간으로 날아와 쌓이고, 성취한 소원이 흘러가요.
-import { createWorld } from './world.js?v=3';
+import { createWorld } from './world.js?v=4';
 import { connect, mode, explainError } from './net.js?v=4';
-import { windAt } from './physics.js?v=3';
-import { faceDataURL } from './coin-art.js?v=3';
-import { ZONES, timeAgo, esc } from './game.js?v=3';
-import * as sfx from './sound.js?v=3';
+import { windAt } from './physics.js?v=4';
+import { faceDataURL } from './coin-art.js?v=4';
+import { ZONES, timeAgo, esc } from './game.js?v=4';
+import * as sfx from './sound.js?v=4';
 
 const $ = (id) => document.getElementById(id);
 const world = createWorld($('scene'), { mode: 'pond' });

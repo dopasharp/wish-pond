@@ -107,7 +107,7 @@ async function firebaseApi(role) {
     cheer(id, current) { return bump('wishCheers', 'n', id, current); },
     report(id, current) { return bump('wishReports', 'r', id, current); },
     setPresence(next) {
-      info = { nick: String(next.nick || '').slice(0, 10), design: next.design || null };
+      info = { nick: String(next.nick || '').slice(0, 10), design: next.design || null, spot: Number.isFinite(next.spot) ? +(+next.spot).toFixed(4) : null };
       if (uid) d.update(me, info).catch((e) => console.warn('[wish-pond] presence', e));
     },
     // cb([{ uid, nick, design }]) — 지금 접속한 던지는 사람들
@@ -119,7 +119,7 @@ async function firebaseApi(role) {
       const map = new Map();
       let t;
       const emit = () => { clearTimeout(t); t = setTimeout(() => cb([...map.values()]), 150); };
-      const put = (c) => { const v = c.val(); if (v && v.role === 'thrower') map.set(c.key, { uid: c.key, nick: v.nick || '', design: v.design || null }); else map.delete(c.key); emit(); };
+      const put = (c) => { const v = c.val(); if (v && v.role === 'thrower') map.set(c.key, { uid: c.key, nick: v.nick || '', design: v.design || null, spot: v.spot ?? null }); else map.delete(c.key); emit(); };
       d.onChildAdded(ref('presence'), put);
       d.onChildChanged(ref('presence'), put);
       d.onChildRemoved(ref('presence'), (c) => { map.delete(c.key); emit(); });
@@ -150,14 +150,14 @@ function localApi(role) {
   const emitPresence = () => {
     const now = Date.now();
     const list = [];
-    peers.forEach((p, id) => { if (now - p.at < 20000 && p.role === 'thrower') list.push({ uid: id, nick: p.nick || '', design: p.design || null }); });
+    peers.forEach((p, id) => { if (now - p.at < 20000 && p.role === 'thrower') list.push({ uid: id, nick: p.nick || '', design: p.design || null, spot: p.spot ?? null }); });
     subs.presence.forEach((f) => f(list));
   };
   ch.onmessage = ({ data: m }) => {
     if (m.type === 'coin') subs.coin.forEach((f) => f(m.id, m.coin, false));
     else if (m.type === 'wishes') emitWishes();
     else if (m.type === 'total') emitTotal();
-    else if (m.type === 'hello') { peers.set(m.uid, { role: m.role, nick: m.nick, design: m.design, at: Date.now() }); emitPresence(); }
+    else if (m.type === 'hello') { peers.set(m.uid, { role: m.role, nick: m.nick, design: m.design, spot: m.spot, at: Date.now() }); emitPresence(); }
     else if (m.type === 'bye') { peers.delete(m.uid); emitPresence(); }
   };
   let info = {};
@@ -206,7 +206,7 @@ function localApi(role) {
       const x = db(); const w = x.wishes[id]; if (!w) return;
       w.r = (w.r || 0) + 1; save(x); ch.postMessage({ type: 'wishes' }); emitWishes();
     },
-    setPresence(next) { info = { nick: next.nick || '', design: next.design || null }; hello(); },
+    setPresence(next) { info = { nick: next.nick || '', design: next.design || null, spot: next.spot ?? null }; hello(); },
     watchPresence(cb) { subs.presence.push(cb); emitPresence(); },
     sleep() {}, wake() {},
   };

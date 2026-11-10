@@ -62,6 +62,10 @@ export function mulberry32(seed) {
 
 // 바람: 15초마다 바뀌고, 같은 시각이면 모든 기기에서 같은 값 (m/s², +는 오른쪽 = +x)
 export const WIND_PERIOD = 15000;
+
+// 던지는 자리 후보 (연못 앞쪽 반원, 궁전 뒤쪽은 제외). 각도 = π/2 ± …
+export const SPOTS = [-1.2, -0.9, -0.6, -0.3, 0, 0.3, 0.6, 0.9, 1.2].map((d) => +(Math.PI / 2 + d).toFixed(4));
+export function spotPos(ang, r = POND.hand.z) { return { x: Math.cos(ang) * r, z: Math.sin(ang) * r }; }
 export function windAt(ms = Date.now()) {
   const slot = Math.floor(ms / WIND_PERIOD);
   const r = mulberry32(slot * 2654435761)();
@@ -124,9 +128,15 @@ export function simulate(launch) {
 
   const speed = 3.4 + power * 6.2;
   const elev = 0.58 + (power - 0.5) * 0.1;
-  const yaw = aim * 0.3;
-  const p = { x: H.x + aim * 0.12, y: H.y, z: H.z };
-  const v = { x: Math.sin(yaw) * Math.cos(elev) * speed, y: Math.sin(elev) * speed, z: -Math.cos(yaw) * Math.cos(elev) * speed };
+  const yaw = aim * 0.42;
+  // 던지는 자리: 연못 둘레 각도 ang (π/2 = 정면 앞쪽). 기본 자리 기준 계산을 ang만큼 돌림
+  const ang = Number.isFinite(+launch.ang) ? +launch.ang : Math.PI / 2;
+  const rot = ang - Math.PI / 2, cr = Math.cos(rot), sr = Math.sin(rot);
+  const turn = (x, z) => ({ x: x * cr - z * sr, z: x * sr + z * cr });
+  const p0 = turn(H.x + aim * 0.12, H.z);
+  const v0 = turn(Math.sin(yaw) * Math.cos(elev) * speed, -Math.cos(yaw) * Math.cos(elev) * speed);
+  const p = { x: p0.x, y: H.y, z: p0.z };
+  const v = { x: v0.x, y: Math.sin(elev) * speed, z: v0.z };
 
   const dt = 1 / 240;
   const frames = [];
@@ -260,7 +270,7 @@ export function simulate(launch) {
 
   const T = POND.turtle;
   const dist = Math.min(Math.hypot(rest.x - T.x, rest.z - T.z), Math.hypot(rest.x - P.x, rest.z - P.z));
-  return { frames: new Float32Array(frames), fps: 60, events, zone, rest, duration: t, dist, bounces };
+  return { frames: new Float32Array(frames), fps: 60, events, zone, rest, duration: t, dist, bounces, ang };
 }
 
 // 한 번 던진 결과의 점수 (0~100, 소원 성취 확률)

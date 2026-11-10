@@ -1,11 +1,11 @@
 // 던지는 폰: 닉네임 → 동전 꾸미기 → 소원 → 3번 던지기 → 결과 → (성공 시) 익명 게시판
-import { createWorld } from './world.js?v=3';
+import { createWorld } from './world.js?v=4';
 import { connect, mode, newId, explainError } from './net.js?v=4';
-import { windAt, simulate, scoreOf, isSuccess } from './physics.js?v=3';
-import { METALS, RIMS, STAMPS, DEFAULT_DESIGN, sanitizeDesign } from './coin-art.js?v=3';
-import { ZONES, SHOTS, shotMessage, finalResult, timeAgo, esc } from './game.js?v=3';
-import { cleanWish, cleanNick } from './filter.js?v=3';
-import * as sfx from './sound.js?v=3';
+import { windAt, simulate, scoreOf, isSuccess, SPOTS } from './physics.js?v=4';
+import { METALS, RIMS, STAMPS, DEFAULT_DESIGN, sanitizeDesign } from './coin-art.js?v=4';
+import { ZONES, SHOTS, shotMessage, finalResult, timeAgo, esc } from './game.js?v=4';
+import { cleanWish, cleanNick } from './filter.js?v=4';
+import * as sfx from './sound.js?v=4';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -23,6 +23,16 @@ let api = null;
 const mine = new Set();
 const myWishes = new Set(store.get('myWishes', []));
 let round = null; // { id, shots: [], wish, share }
+// 내가 서서 던지는 자리 (연못 둘레, 판마다 랜덤 · 다른 사람이 있는 자리는 되도록 피함)
+let spot = SPOTS[Math.floor(Math.random() * SPOTS.length)];
+let othersSpots = [];
+function pickSpot() {
+  const free = SPOTS.filter((a) => a !== spot && !othersSpots.some((o) => Math.abs(o - a) < 0.2));
+  const pool = free.length ? free : SPOTS.filter((a) => a !== spot);
+  spot = pool[Math.floor(Math.random() * pool.length)];
+  world.setThrowSpot(spot);
+  sharePresence();
+}
 let busy = false;
 
 /* ---------------- 단계 전환 ---------------- */
@@ -61,7 +71,7 @@ function radio(container, items, current, onPick, render) {
 let presTimer;
 function sharePresence() {
   clearTimeout(presTimer);
-  presTimer = setTimeout(() => api && api.setPresence && api.setPresence({ nick, design }), 1200); // 연타해도 DB 쓰기는 한 번
+  presTimer = setTimeout(() => api && api.setPresence && api.setPresence({ nick, design, spot }), 1200); // 연타해도 DB 쓰기는 한 번
 }
 function updateDesign(patch) {
   design = sanitizeDesign({ ...design, ...patch });
@@ -119,6 +129,7 @@ $('wish-done').onclick = () => {
   const wish = $('wish').value.trim();
   store.set('wish', wish); store.set('share', $('share-wish').checked);
   round = { id: newId(), shots: [], wish, share: $('share-wish').checked };
+  pickSpot();
   sfx.chimes(0, 3);
   go('throw');
   $('hint').classList.remove('gone');
@@ -131,7 +142,11 @@ function renderCoinsLeft() {
 }
 function showWind() {
   const w = windAt();
-  const arrow = w > 0.05 ? '→' : w < -0.05 ? '←' : '·';
+  // 바람은 동서(x) 방향. 내 자리에서 보면 어느 쪽인지로 바꿔서 화살표 표시
+  const f = { x: -Math.cos(spot), z: -Math.sin(spot) }, rt = { x: -f.z, z: f.x };
+  const side = w * rt.x, ahead = w * f.x;
+  let arrow = '·';
+  if (Math.abs(w) > 0.05) arrow = Math.abs(side) >= Math.abs(ahead) ? (side > 0 ? '→' : '←') : (ahead > 0 ? '↑' : '↓');
   $('wind').textContent = `바람 ${arrow} ${Math.abs(w).toFixed(1)}`;
   $('wind').classList.toggle('strong', Math.abs(w) > 0.7);
 }
@@ -199,7 +214,7 @@ function throwCoin({ power, aimX, spin }) {
   busy = true;
   const shot = round.shots.length + 1;
   if (shot === 1) track('game_start', { method: 'swipe' });
-  const launch = { power: +power.toFixed(3), aimX: +aimX.toFixed(3), spin: +spin.toFixed(2), wind: windAt(), seed: (crypto.getRandomValues(new Uint32Array(1))[0] >>> 1) };
+  const launch = { power: +power.toFixed(3), aimX: +aimX.toFixed(3), spin: +spin.toFixed(2), wind: windAt(), ang: spot, seed: (crypto.getRandomValues(new Uint32Array(1))[0] >>> 1) };
   const id = newId();
   mine.add(id);
   const sim = simulate(launch);
@@ -352,6 +367,7 @@ document.addEventListener('visibilitychange', () => {
 (async () => {
   try {
     api = await connect('thrower');
+    api.watchPresence((list) => { othersSpots = list.filter((p) => p.uid !== api.uid && Number.isFinite(+p.spot)).map((p) => +p.spot); });
     sharePresence();
     api.watchCoins(60, onCoin); // 폰은 최근 동전만 (데이터 절약)
     api.watchWishes(30, onWishes);
@@ -363,4 +379,5 @@ document.addEventListener('visibilitychange', () => {
 })();
 
 go('intro');
+world.setThrowSpot(spot);
 world.setHandCoin(design);
