@@ -24,9 +24,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dopasharp/tokens.css">
   <link rel="stylesheet" href="dopasharp/components.css">
-  <link rel="stylesheet" href="css/style.css?v=3">
+  <link rel="stylesheet" href="css/style.css?v=5">
   <script src="dopasharp/dopasharp.js" defer></script>
-  <script type="module" src="js/coin.js?v=6"></script>
+  <script type="module" src="js/coin.js?v=7"></script>
 </head>
 <body class="coin-page" data-step="intro">
   <canvas id="scene" aria-label="연못 3D 화면"></canvas>
@@ -43,9 +43,11 @@
     <div class="hud-right">
       <button id="sound-btn" class="chip" type="button" aria-label="소리">🔊</button>
       <button id="board-btn" class="chip" type="button">🎉 성취 게시판</button>
+      <button id="input-btn" class="chip" type="button" aria-pressed="false">☝️ 손가락으로 던지기</button>
     </div>
   </div>
   <p id="hint" class="hint">↑ 동전을 위로 휙! 밀어서 던지기</p>
+  <div id="aim" class="aim" hidden aria-hidden="true"><span class="aim-dot"></span><span class="aim-mid"></span></div>
   <div id="shot-toast" class="shot-toast" hidden></div>
   <div id="power" class="power" hidden><span></span></div>
   <button id="again-btn" class="dopa-button again" type="button">🪙 다시 빌기</button>

@@ -48,6 +48,7 @@ function go(step) {
 /* ---------------- 1. 시작 ---------------- */
 $('nick').value = nick;
 $('start-btn').onclick = () => {
+  enableMotion(); // iOS는 탭 안에서 바로 권한을 물어야 해요
   sfx.unlockAudio(); sfx.setSoundEnabled(store.get('sound', true)); if (store.get('sound', true)) sfx.startAmbient(0.55);
   syncSoundBtn();
   nick = cleanNick($('nick').value); store.set('nick', nick);
@@ -164,6 +165,7 @@ function showToast(html, ms = 2400, cls = '') {
 const touch = $('touch');
 let drag = null;
 touch.addEventListener('pointerdown', (e) => {
+  if (inputMode !== 'finger') return;
   if (document.body.dataset.step !== 'throw' || busy || !round || round.shots.length >= SHOTS) return;
   touch.setPointerCapture(e.pointerId);
   drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, pts: [{ x: e.clientX, y: e.clientY, t: e.timeStamp }] };
@@ -195,6 +197,103 @@ const endDrag = (e) => {
 };
 touch.addEventListener('pointerup', endDrag);
 touch.addEventListener('pointercancel', (e) => { if (drag && e.pointerId === drag.id) { drag = null; world.setHandDrag(0, 0); } });
+
+/* ---------------- 동작 센서: 휘둘러 던지기 + 기울여 조준 ---------------- */
+// 기본은 '폰 휘두르기'. 센서가 없거나 권한이 거부되면 자동으로 손가락 모드.
+let inputMode = store.get('input', 'motion'); // 'motion' | 'finger'
+let motionOK = null; // null: 아직 모름, true/false
+let motionSeen = false, motionCooldown = 0, aimNow = 0, swing = null, lastJingle = 0;
+const oriBuf = [];
+const SWING_THR = 13; // m/s² 이 이상이면 던지기 시작 (동전은 도끼보다 가볍게)
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+async function enableMotion() {
+  try {
+    for (const Ev of [window.DeviceMotionEvent, window.DeviceOrientationEvent]) {
+      if (Ev && typeof Ev.requestPermission === 'function') {
+        const r = await Ev.requestPermission();
+        if (r !== 'granted') throw new Error('denied');
+      }
+    }
+    addEventListener('devicemotion', onMotion);
+    addEventListener('deviceorientation', onOrientation);
+    setTimeout(() => { if (!motionSeen) { motionOK = false; syncInput('이 기기엔 동작 센서가 없어서 손가락 모드로 바꿨어요'); } else motionOK = true; }, 1500);
+  } catch {
+    motionOK = false;
+    syncInput('센서 권한이 없어서 손가락 모드로 바꿨어요');
+  }
+  keepAwake();
+}
+function useMotion() { return inputMode === 'motion' && motionOK !== false; }
+function syncInput(msg) {
+  const motion = useMotion();
+  document.body.classList.toggle('motion-mode', motion);
+  $('input-btn').setAttribute('aria-pressed', String(!motion));
+  $('input-btn').textContent = motion ? '☝️ 손가락으로 던지기' : '📱 폰 휘둘러 던지기';
+  $('hint').innerHTML = motion ? '📱 폰을 앞으로 <b>휙!</b> 휘둘러 던지기<br><small>좌우로 기울여 조준 · 폰을 꽉 쥐세요</small>' : '↑ 동전을 위로 휙! 밀어서 던지기';
+  $('aim').hidden = !motion;
+  if (msg) showToast(msg, 2600, 'warn');
+}
+$('input-btn').onclick = () => {
+  if (motionOK === false && inputMode === 'finger') { showToast('이 기기에선 동작 센서를 쓸 수 없어요', 2200, 'warn'); return; }
+  inputMode = useMotion() ? 'finger' : 'motion';
+  store.set('input', inputMode);
+  if (inputMode === 'motion' && motionOK == null) enableMotion();
+  syncInput(); sfx.tick();
+};
+function onOrientation(e) {
+  if (e.gamma == null) return;
+  const t = performance.now();
+  oriBuf.push({ t, g: e.gamma });
+  while (oriBuf.length && t - oriBuf[0].t > 1200) oriBuf.shift();
+  if (!swing && !busy) {
+    aimNow = clamp(e.gamma / 32, -1, 1);
+    $('aim').firstElementChild.style.left = `${50 + aimNow * 46}%`;
+    if (useMotion() && document.body.dataset.step === 'throw') world.setHandDrag(aimNow * 0.25, 0);
+  }
+}
+// 휘두르기 직전(흔들리기 전) 기울기
+function aimBefore(t) {
+  let pick = null;
+  for (const o of oriBuf) if (o.t <= t - 180) pick = o;
+  return pick ? clamp(pick.g / 32, -1, 1) : aimNow;
+}
+function onMotion(e) {
+  let mag;
+  const a = e.acceleration;
+  if (a && a.x != null) mag = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
+  else {
+    const g = e.accelerationIncludingGravity;
+    if (!g || g.x == null) return;
+    mag = Math.max(0, Math.hypot(g.x || 0, g.y || 0, g.z || 0) - 9.81);
+  }
+  motionSeen = true;
+  if (!useMotion() || document.body.dataset.step !== 'throw' || busy || !round || round.shots.length >= SHOTS) { swing = null; return; }
+  const t = performance.now();
+  if (t < motionCooldown) return;
+  if (!swing) {
+    if (mag > SWING_THR) { swing = { start: t, peak: mag, aim: aimBefore(t) }; return; }
+    // 살짝 흔들면 손 안에서 동전이 달그락
+    if (mag > 4 && t - lastJingle > 160) {
+      lastJingle = t;
+      world.setHandDrag(aimNow * 0.25 + (Math.random() - 0.5) * 0.04, Math.min(0.12, mag / 80));
+      sfx.flick(Math.min(0.25, mag / 60)); vibrate(5);
+    }
+    return;
+  }
+  if (mag > swing.peak) swing.peak = mag;
+  if (t - swing.start > 150) {
+    const power = clamp(0.12 + (swing.peak - SWING_THR) / (SWING_THR * 1.6), 0, 1);
+    const aimX = swing.aim;
+    swing = null;
+    throwCoin({ power, aimX, spin: clamp(0.4 + power * 0.6, 0.2, 1) });
+  }
+}
+let wakeLock = null;
+async function keepAwake() {
+  try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch {}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && motionOK) keepAwake(); });
+syncInput();
 
 // 데스크톱 테스트: 스페이스로 무작위 던지기
 addEventListener('keydown', (e) => {
@@ -249,7 +348,7 @@ function afterShot(sim, shot) {
   const z = sim.zone;
   showToast(shotMessage(sim), 2600, isSuccess(z) ? 'good' : z === 'out' ? 'bad' : '');
   if (shot < SHOTS) {
-    setTimeout(() => { busy = false; world.setHandCoin(design); world.setHandMode('ready'); }, 900);
+    setTimeout(() => { busy = false; motionCooldown = performance.now() + 700; world.setHandCoin(design); world.setHandMode('ready'); }, 900);
   } else {
     setTimeout(finishRound, 1700);
   }

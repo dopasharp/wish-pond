@@ -185,3 +185,13 @@ button{font:inherit;color:inherit}
 .pond-page #scene{cursor:grab}
 .pond-page #scene:active{cursor:grabbing}
 @media (max-width:600px){.qr-card{left:auto;right:12px;bottom:60px}}
+
+/* 동작 센서 모드 */
+.coin-page.motion-mode .touch{display:none !important}
+.coin-page .hint small{font-weight:600;font-size:12px;color:var(--pond-muted)}
+.coin-page.motion-mode .hint{white-space:nowrap;width:max-content;max-width:94vw;text-align:center;line-height:1.35;padding:8px 16px}
+.aim{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 92px);transform:translateX(-50%);z-index:4;width:min(220px,58vw);height:8px;border-radius:999px;background:rgba(255,255,255,.55);box-shadow:0 2px 10px rgba(40,90,140,.15);display:none}
+.coin-page.motion-mode[data-step="throw"] .aim:not([hidden]){display:block}
+.aim-dot{position:absolute;top:50%;left:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff3c9,#e2a93a);box-shadow:0 2px 8px rgba(160,110,20,.5);transition:left 80ms linear}
+.aim-mid{position:absolute;left:50%;top:-4px;width:2px;height:16px;margin-left:-1px;background:rgba(34,48,74,.25)}
+#input-btn{font-size:12px;padding:6px 10px;min-height:34px}
