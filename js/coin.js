@@ -80,6 +80,26 @@ let typeTimer;
   typeTimer = setTimeout(() => updateDesign({ text: $('text-front').value, back: $('text-back').value }), 120);
 }));
 $('flip-btn').onclick = () => { world.flipHandCoin(); sfx.flick(0.2); };
+
+// 🎲 랜덤 꾸미기: 재질·테두리·그림·앞뒤 글자를 무작위로
+const RANDOM_FRONT = ['합격', '대박', '행운', '사랑', '건강', '부자', '소원', '럭키', '꿈', '승리', '로또', '취뽀', '연애', '성공', '힐링', '파이팅'];
+const RANDOM_BACK = ['2026', 'WISH', 'LUCK', '♡', '★', '777', '1등', '오늘', '꼭', 'LOVE', '도파#', '굿럭'];
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+function syncDesignControls() {
+  const mark = (id, v) => $(id).querySelectorAll('[role=radio]').forEach((x) => x.setAttribute('aria-checked', String(x.dataset.value === v)));
+  mark('metals', design.metal); mark('rims', design.rim); mark('stamps', design.stamp);
+  $('stamp-custom').value = ''; $('text-front').value = design.text; $('text-back').value = design.back;
+}
+$('random-btn').onclick = () => {
+  let next;
+  do {
+    next = { metal: pick(Object.keys(METALS)), rim: pick(Object.keys(RIMS)), stamp: Math.random() < 0.08 ? '' : pick(STAMPS), text: Math.random() < 0.1 ? '' : pick(RANDOM_FRONT), back: pick(RANDOM_BACK) };
+  } while (next.metal === design.metal && next.stamp === design.stamp);
+  updateDesign(next);
+  syncDesignControls();
+  sfx.flick(0.3); vibrate(8);
+  const b = $('random-btn'); b.classList.remove('spin'); void b.offsetWidth; b.classList.add('spin');
+};
 $('design-done').onclick = () => { sfx.tick(); go('wish'); };
 
 /* ---------------- 3. 소원 ---------------- */

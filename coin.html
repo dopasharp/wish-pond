@@ -24,9 +24,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dopasharp/tokens.css">
   <link rel="stylesheet" href="dopasharp/components.css">
-  <link rel="stylesheet" href="css/style.css?v=1">
+  <link rel="stylesheet" href="css/style.css?v=2">
   <script src="dopasharp/dopasharp.js" defer></script>
-  <script type="module" src="js/coin.js?v=1"></script>
+  <script type="module" src="js/coin.js?v=2"></script>
 </head>
 <body class="coin-page" data-step="intro">
   <canvas id="scene" aria-label="연못 3D 화면"></canvas>
@@ -66,7 +66,10 @@
   <!-- 2. 동전 꾸미기 -->
   <section class="sheet" id="sheet-design" hidden aria-labelledby="design-title">
     <div class="sheet-grip"></div>
-    <h2 id="design-title" class="sheet-title">동전 꾸미기</h2>
+    <div class="title-row">
+      <h2 id="design-title" class="sheet-title">동전 꾸미기</h2>
+      <button id="random-btn" class="chip random-btn" type="button">🎲 랜덤 꾸미기</button>
+    </div>
     <div class="group">
       <span class="group-label">재질</span>
       <div id="metals" class="swatches" role="radiogroup" aria-label="재질"></div>

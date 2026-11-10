@@ -167,3 +167,10 @@ button{font:inherit;color:inherit}
 .coins-left,.wind{box-shadow:0 4px 16px rgba(40,90,140,.12)}
 .wind.strong{color:#a96d00;border-color:rgba(200,138,18,.5)}
 .hint{box-shadow:0 6px 20px rgba(40,90,140,.18)}
+
+/* 랜덤 꾸미기 */
+.title-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.title-row .sheet-title{margin-bottom:0}
+.random-btn{background:linear-gradient(135deg,#fff5d6,#ffe1ee 55%,#dff7fa);border-color:rgba(200,138,18,.35);font-weight:800;white-space:nowrap}
+.random-btn.spin{animation:diceSpin .45s cubic-bezier(.2,1.4,.3,1)}
+@keyframes diceSpin{40%{transform:rotate(-8deg) scale(1.12)}}
