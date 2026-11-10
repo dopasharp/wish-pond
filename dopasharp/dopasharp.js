@@ -17,7 +17,8 @@ const GAMES=[
  {id:'axe-throwing', code:'AXE',     art:'🪓',name:'도끼 던지기'},
  {id:'truth-mirror', code:'MIRROR',  art:'🪞',name:'진실의 거울'},
  {id:'gacha-capsule',code:'GACHA',   art:'🎰',name:'랜덤 뽑기'},
- {id:'wish-pond',    code:'WISH',    art:'🪙',name:'소원의 연못'}
+ {id:'wish-pond',    code:'WISH',    art:'🪙',name:'소원의 연못'},
+ {id:'blink-battle', code:'BLINK',   art:'👁️',name:'눈싸움'}
 ].map((g,i)=>({...g,no:String(i+1).padStart(3,'0'),url:`https://dopasharp.github.io/${g.id}/`}));
 const LOGO='<svg viewBox="0 0 132 80" fill="currentColor" aria-hidden="true"><g transform="translate(18 0) skewX(-14)"><path fill-rule="evenodd" d="M18 10h25c19 0 30 12 30 30S62 70 43 70H18zm15 13v34h9c10 0 16-6.5 16-17s-6-17-16-17z"/><rect x="83" y="12" width="9" height="56"/><rect x="100" y="12" width="9" height="56"/><rect x="77" y="27" width="38" height="9"/><rect x="77" y="45" width="38" height="9"/></g></svg>';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
